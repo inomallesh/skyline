@@ -157,7 +157,7 @@
   const virtualScreenGeo = new THREE.PlaneGeometry(6.4, 4.0);
   const virtualScreenMat = new THREE.MeshBasicMaterial({ map: vTexture, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
   const virtualScreen = new THREE.Mesh(virtualScreenGeo, virtualScreenMat);
-  virtualScreen.position.set(40, 9, 0); 
+  virtualScreen.position.set(33, 13, 0); 
   virtualScreen.rotation.y = Math.PI / 2; // Face towards the man (+X direction)
   scene.add(virtualScreen);
 
