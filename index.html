@@ -146,17 +146,9 @@
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
   let grid = new THREE.GridHelper(60, 60, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
 
-  // --- CENTER SUBJECT MODEL ---
-  const targetGeo = new THREE.TorusKnotGeometry(2, 0.6, 100, 16);
-  const targetMat = new THREE.MeshStandardMaterial({color: 0x4fb0ff, roughness: 0.2, metalness: 0.8});
-  const centerTarget = new THREE.Mesh(targetGeo, targetMat);
-  centerTarget.position.set(0, 4, 0);
-  centerTarget.castShadow = true;
-  scene.add(centerTarget);
-
   // --- VIRTUAL DISPLAY 1 (FLOATING HUD) ---
   const vCanvas = document.createElement('canvas');
-  vCanvas.width = 512; vCanvas.height = 320;
+  vCanvas.width = 1024; vCanvas.height = 640;
   const ctx = vCanvas.getContext('2d');
   const vTexture = new THREE.CanvasTexture(vCanvas);
   
@@ -169,6 +161,9 @@
 
   function updateVirtualScreen(x, y, z) {
     ctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
+    // Scale drawings up by 2 to map perfectly to the 1024x640 canvas (retina sharpness)
+    ctx.save(); ctx.scale(2, 2);
+    
     ctx.fillStyle = '#16191d'; ctx.beginPath(); ctx.roundRect(0, 0, 512, 320, 16); ctx.fill();
     ctx.strokeStyle = '#2a2f36'; ctx.lineWidth = 2; ctx.stroke();
 
@@ -185,25 +180,40 @@
     drawSlider('Pos X', x, -26, 26, 110);
     drawSlider('Pos Y', y, 0.5, 40, 185);
     drawSlider('Pos Z', z, -26, 26, 260);
+    ctx.restore();
+    
     vTexture.needsUpdate = true;
   }
 
   // --- VIRTUAL DISPLAY 2 (PAYLOAD CAMERA OUTPUT) ---
-  const camRenderTarget = new THREE.WebGLRenderTarget(1024, 576); // 16:9 HD Ratio
-  const camScreenGeo = new THREE.PlaneGeometry(6.4, 3.6); 
-  const camScreenMat = new THREE.MeshBasicMaterial({ map: camRenderTarget.texture, side: THREE.DoubleSide });
+  // Generate an Alpha Mask Canvas to give the secondary screen beautiful rounded corners
+  const alphaCanvas = document.createElement('canvas');
+  alphaCanvas.width = 1024; alphaCanvas.height = 640; 
+  const actx = alphaCanvas.getContext('2d');
+  actx.fillStyle = '#000'; actx.fillRect(0, 0, 1024, 640);
+  actx.fillStyle = '#fff'; actx.beginPath(); actx.roundRect(0, 0, 1024, 640, 32); actx.fill();
+  const alphaTexture = new THREE.CanvasTexture(alphaCanvas);
+
+  const camRenderTarget = new THREE.WebGLRenderTarget(1024, 640);
+  const camScreenGeo = new THREE.PlaneGeometry(6.4, 4.0); // Exact same size as the HUD display
+  const camScreenMat = new THREE.MeshBasicMaterial({ 
+      map: camRenderTarget.texture, 
+      alphaMap: alphaTexture, // Applies the rounded corner mask
+      transparent: true,
+      side: THREE.DoubleSide 
+  });
+  
   const camScreen = new THREE.Mesh(camScreenGeo, camScreenMat);
-  camScreen.position.set(34, 15, -6.6); // Placed directly beside the virtual HUD screen
-  camScreen.rotation.y = Math.PI / 2;
+  camScreen.position.set(35, 15, -6.6); // Placed directly beside the virtual HUD screen
+  camScreen.rotation.y = (Math.PI / 2) - 0.25; // Rotates slightly inward towards the person
   scene.add(camScreen);
 
   // --- VIRTUAL DISPLAY 3 (LIVE LAPTOP SCREEN) ---
   const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
-  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); // User's precise dimensions
+  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); 
   const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
   const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
   
-  // User's perfect coordinates & rotation fix
   liveLaptopScreen.rotation.order = "YXZ"; 
   liveLaptopScreen.position.set(35.95, 10.5, 0.250); 
   liveLaptopScreen.rotation.y = Math.PI / 2; 
@@ -308,16 +318,16 @@
   gimbal.rotation.order = "YXZ"; 
   endEffector.add(gimbal);
 
-  // Payload Viewport Camera (Acts as the physical lens of the payload)
+  // User's precise payload camera setup
   const payloadCamera = new THREE.PerspectiveCamera(45, 16/9, 0.1, 1000);
-  payloadCamera.position.set(0, 0, 0); 
-  // By default, Three.js cameras look down the -Z axis. Adjust rotation here if your GLB model is facing backwards.
-  // payloadCamera.rotation.y = Math.PI; 
+  payloadCamera.position.set(0, 0, 5); 
+  payloadCamera.rotation.y = Math.PI; 
   gimbal.add(payloadCamera);
 
   const loader = new THREE.GLTFLoader();
-  const mixers = []; // For storing GLB animations
+  const mixers = []; 
   
+  // Load Camera Model
   loader.load('panasonic_nv-m50_vhs_video_camera.glb', function(gltf) {
     const camModel = gltf.scene;
     camModel.scale.set(1.5, 1.5, 1.5); 
@@ -328,6 +338,7 @@
     eeFrame.material.wireframe = false;
   });
 
+  // Load Desk Model
   loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
     const manModel = gltf.scene;
     manModel.position.set(45, 0, 0); 
@@ -335,14 +346,34 @@
     manModel.rotation.y = -Math.PI / 2; 
     manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     
-    // Auto-play the first animation inside the GLB (e.g. typing)
+    // Play desk worker animation
     if (gltf.animations && gltf.animations.length) {
       const mixer = new THREE.AnimationMixer(manModel);
       mixer.clipAction(gltf.animations[0]).play();
       mixers.push(mixer);
     }
-    
     scene.add(manModel);
+  });
+
+  // Load Wall-E Model
+  let walleModel = null;
+  const walleTargetPos = new THREE.Vector3();
+  
+  loader.load('wall-e-animated.glb', function(gltf) {
+    walleModel = gltf.scene;
+    walleModel.scale.set(1.5, 1.5, 1.5); 
+    walleModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
+    
+    // Play Wall-E animation
+    if (gltf.animations && gltf.animations.length) {
+      const mixer = new THREE.AnimationMixer(walleModel);
+      mixer.clipAction(gltf.animations[0]).play();
+      mixers.push(mixer);
+    }
+    
+    // Initial random target inside a 10x10 area
+    walleTargetPos.set((Math.random() - 0.5) * 10, 0, (Math.random() - 0.5) * 10);
+    scene.add(walleModel);
   });
   
   const baseCornerOffsets = [
@@ -516,7 +547,7 @@
     liveRenderTarget.setSize(innerWidth / 2, innerHeight / 2);
   });
 
-  // --- RENDER LOOP ---
+  // --- RENDER LOOP WITH ANIMATIONS & MULTI-CAMS ---
   const clock = new THREE.Clock();
 
   function animate() { 
@@ -525,9 +556,30 @@
     const delta = clock.getDelta();
     mixers.forEach(mixer => mixer.update(delta));
     
-    // Spin the center target
-    centerTarget.rotation.x += 0.5 * delta;
-    centerTarget.rotation.y += 1.0 * delta;
+    // Smooth AI Movement for Wall-E
+    if (walleModel) {
+      const currentPos = walleModel.position;
+      const dist = currentPos.distanceTo(walleTargetPos);
+      
+      if (dist < 0.1) {
+        walleTargetPos.set((Math.random() - 0.5) * 35, 0, (Math.random() - 0.5) * 35);
+      } else {
+        const dir = new THREE.Vector3().subVectors(walleTargetPos, currentPos).normalize();
+        const step = 2.0 * delta; 
+        
+        if (step >= dist) {
+          walleModel.position.copy(walleTargetPos);
+        } else {
+          walleModel.position.add(dir.multiplyScalar(step));
+        }
+        
+        // Slerp physical rotation to face the target path
+        const dummy = new THREE.Object3D();
+        dummy.position.copy(currentPos);
+        dummy.lookAt(walleTargetPos);
+        walleModel.quaternion.slerp(dummy.quaternion, 5.0 * delta);
+      }
+    }
 
     controls.update(); 
 
