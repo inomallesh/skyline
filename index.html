@@ -24,8 +24,8 @@
     pointer-events: none; /* Allows clicking through the empty space */
   }
   .brand { 
-    font-weight: bold; font-size: 16px; color: var(--accent); letter-spacing: 0.05em; 
-    pointer-events: auto; text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    font-weight: bold; font-size: 18px; color: var(--accent); letter-spacing: 0.05em; 
+    pointer-events: auto; text-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
   .menu-btns { display: flex; gap: 10px; pointer-events: auto; }
   
@@ -146,73 +146,53 @@
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
   let grid = new THREE.GridHelper(60, 60, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
 
-  // --- VIRTUAL DISPLAY (CANVAS TEXTURE) ---
+  // --- VIRTUAL DISPLAY 1 (FLOATING HUD) ---
   const vCanvas = document.createElement('canvas');
-  vCanvas.width = 512;
-  vCanvas.height = 320;
+  vCanvas.width = 512; vCanvas.height = 320;
   const ctx = vCanvas.getContext('2d');
   const vTexture = new THREE.CanvasTexture(vCanvas);
   
-  // Creates a floating holographic monitor above the laptop
   const virtualScreenGeo = new THREE.PlaneGeometry(6.4, 4.0);
   const virtualScreenMat = new THREE.MeshBasicMaterial({ map: vTexture, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
   const virtualScreen = new THREE.Mesh(virtualScreenGeo, virtualScreenMat);
-  virtualScreen.position.set(35, 15, 0); 
-  virtualScreen.rotation.y = Math.PI / 2; // Face towards the man (+X direction)
+  virtualScreen.position.set(34, 15, 0); // Position updated as requested
+  virtualScreen.rotation.y = Math.PI / 2;
   scene.add(virtualScreen);
 
-  // Draw the UI onto the canvas
   function updateVirtualScreen(x, y, z) {
     ctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
-    
-    // Panel Background
-    ctx.fillStyle = '#16191d';
-    ctx.beginPath();
-    ctx.roundRect(0, 0, 512, 320, 16);
-    ctx.fill();
-    ctx.strokeStyle = '#2a2f36';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    ctx.fillStyle = '#16191d'; ctx.beginPath(); ctx.roundRect(0, 0, 512, 320, 16); ctx.fill();
+    ctx.strokeStyle = '#2a2f36'; ctx.lineWidth = 2; ctx.stroke();
 
-    // Header
-    ctx.fillStyle = '#8b939c';
-    ctx.font = 'bold 20px monospace';
-    ctx.fillText('END-EFFECTOR POS', 30, 40);
-    ctx.beginPath();
-    ctx.moveTo(0, 60); ctx.lineTo(512, 60);
-    ctx.stroke();
+    ctx.fillStyle = '#8b939c'; ctx.font = 'bold 20px monospace'; ctx.fillText('END-EFFECTOR POS', 30, 40);
+    ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(512, 60); ctx.stroke();
 
-    // Slider Drawer
     function drawSlider(label, val, min, max, yOffset) {
-      ctx.fillStyle = '#8b939c';
-      ctx.font = '16px monospace';
-      ctx.fillText(label, 30, yOffset);
-      ctx.fillStyle = '#e6e9ec';
-      ctx.textAlign = 'right';
-      ctx.fillText(val.toFixed(2), 482, yOffset);
-      ctx.textAlign = 'left';
-
-      // Track
-      ctx.fillStyle = '#2a2f36';
-      ctx.beginPath();
-      ctx.roundRect(30, yOffset + 15, 452, 6, 3);
-      ctx.fill();
-
-      // Thumb
+      ctx.fillStyle = '#8b939c'; ctx.font = '16px monospace'; ctx.fillText(label, 30, yOffset);
+      ctx.fillStyle = '#e6e9ec'; ctx.textAlign = 'right'; ctx.fillText(val.toFixed(2), 482, yOffset); ctx.textAlign = 'left';
+      ctx.fillStyle = '#2a2f36'; ctx.beginPath(); ctx.roundRect(30, yOffset + 15, 452, 6, 3); ctx.fill();
       const pct = (val - min) / (max - min);
-      const thumbX = 30 + (pct * 452);
-      ctx.fillStyle = '#4fb0ff';
-      ctx.beginPath();
-      ctx.arc(thumbX, yOffset + 18, 10, 0, Math.PI*2);
-      ctx.fill();
+      ctx.fillStyle = '#4fb0ff'; ctx.beginPath(); ctx.arc(30 + (pct * 452), yOffset + 18, 10, 0, Math.PI*2); ctx.fill();
     }
-
     drawSlider('Pos X', x, -26, 26, 110);
     drawSlider('Pos Y', y, 0.5, 40, 185);
     drawSlider('Pos Z', z, -26, 26, 260);
-
     vTexture.needsUpdate = true;
   }
+
+  // --- VIRTUAL DISPLAY 2 (LIVE LAPTOP SCREEN) ---
+  // Create a RenderTarget to capture the live scene
+  const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
+  const laptopScreenGeo = new THREE.PlaneGeometry(1.5, 1.0); // Size of typical model laptop screen
+  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture });
+  const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
+  
+  // Position it exactly over the laptop keyboard in the GLB model
+  // (Man is at x:45, y:0, z:0, facing -X. Desk is around X: 44. Screen faces +X)
+  liveLaptopScreen.position.set(43.85, 4.4, 0); 
+  liveLaptopScreen.rotation.y = Math.PI / 2; // Face the man
+  liveLaptopScreen.rotation.x = -0.15; // Tilt slightly back like a real laptop
+  scene.add(liveLaptopScreen);
 
   // --- UI DRAG LOGIC ---
   const hud = document.getElementById('hud');
@@ -314,7 +294,6 @@
 
   const loader = new THREE.GLTFLoader();
   
-  // Load Camera Model
   loader.load('panasonic_nv-m50_vhs_video_camera.glb', function(gltf) {
     const camModel = gltf.scene;
     camModel.scale.set(1.5, 1.5, 1.5); 
@@ -325,12 +304,11 @@
     eeFrame.material.wireframe = false;
   });
 
-  // Load Man working at desk Model
   loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
     const manModel = gltf.scene;
     manModel.position.set(45, 0, 0); 
     manModel.scale.set(2, 2, 2); 
-    manModel.rotation.y = -Math.PI / 2; // Facing the rig (-X direction)
+    manModel.rotation.y = -Math.PI / 2; 
     manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     scene.add(manModel);
   });
@@ -378,7 +356,6 @@
       cables[i].lookAt(pt); cables[i].rotateX(Math.PI/2);
     }
     
-    // Sync HTML UI and Virtual 3D UI
     if (sx && sy && sz) {
       sx.value = data.x; sy.value = data.y; sz.value = data.z;
       vx.textContent = data.x.toFixed(2); vy.textContent = data.y.toFixed(2); vz.textContent = data.z.toFixed(2);
@@ -387,9 +364,9 @@
     }
   }
 
-  // Initialize all pillars to height of 35
+  // Initialize
   pillarsData.forEach((_, i) => updatePillarGeometry(i, 35.0, undefined, undefined));
-  updateVirtualScreen(0, 10, 0); // Initial draw
+  updateVirtualScreen(0, 10, 0); 
 
   // --- GIZMO MODES & TRANSFORM CONTROLS ---
   let gizmoMode = 'translate';
@@ -448,7 +425,6 @@
   let activePillarIndex = -1;
 
   window.addEventListener('pointerdown', (e) => {
-    // Ignore clicks on UI overlays or modal interactions
     if(e.target.closest('.ui-panel') || e.target.closest('#menu-bar') || e.target.closest('#about-modal') || e.target.tagName === 'BUTTON') return;
     
     mouse.x = (e.clientX / innerWidth) * 2 - 1; 
@@ -501,8 +477,30 @@
     grid.position.y = 0.01; scene.add(grid);
   });
 
-  window.addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
-  function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+  window.addEventListener('resize', () => { 
+    camera.aspect = innerWidth/innerHeight; 
+    camera.updateProjectionMatrix(); 
+    renderer.setSize(innerWidth, innerHeight);
+    liveRenderTarget.setSize(innerWidth / 2, innerHeight / 2);
+  });
+
+  // --- RENDER LOOP WITH DROSTE EFFECT ---
+  function animate() { 
+    requestAnimationFrame(animate); 
+    controls.update(); 
+
+    // 1. Render scene to the Live Laptop Screen texture
+    // Hide the screen momentarily to prevent a recursive feedback loop error
+    liveLaptopScreen.visible = false; 
+    renderer.setRenderTarget(liveRenderTarget);
+    renderer.render(scene, camera);
+
+    // 2. Render scene normally to the Main Monitor
+    liveLaptopScreen.visible = true; 
+    renderer.setRenderTarget(null);
+    renderer.render(scene, camera);
+  }
+  
   animate();
 })();
 </script>
