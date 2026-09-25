@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CDPR Cube Simulator</title>
+<style>
+  :root{
+    --bg:#0d0f12; --panel:#16191d; --panel2:#1d2126; --line:#2a2f36;
+    --text:#e6e9ec; --muted:#8b939c; --accent:#4fb0ff; --accent2:#ff8a4f;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;overflow:hidden;
+    box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+  #canvas-wrap{position:absolute;inset:0;}
+  canvas{display:block;}
+  #hud{
+    position:absolute; top:env(safe-area-inset-top,16px); left:16px;
+    width:240px; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:14px 16px 18px; backdrop-filter:blur(6px);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  #hud h1{font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 12px; font-weight:600;}
+  .row{margin-bottom:14px;}
+  .row:last-child{margin-bottom:0;}
+  .row label{display:flex; justify-content:space-between; font-size:12px;
+    color:var(--muted); margin-bottom:6px;}
+  .row label b{color:var(--text); font-family:ui-monospace,Menlo,monospace; font-weight:500;}
+  .axis-x{color:#ff6b6b} .axis-y{color:#5fd97a} .axis-z{color:var(--accent)}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:2px;
+    background:var(--line); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--accent); cursor:pointer; border:2px solid #0d0f12;
+    box-shadow:0 0 0 1px var(--accent);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%; background:var(--accent);
+    cursor:pointer; border:2px solid #0d0f12;
+  }
+  #hint{
+    position:absolute; bottom:env(safe-area-inset-bottom,12px); left:16px;
+    font-size:11px; color:var(--muted); background:var(--panel);
+    border:1px solid var(--line); padding:6px 10px; border-radius:6px;
+  }
+</style>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+<div id="hud">
+  <h1>Cube Position</h1>
+  <div class="row">
+    <label><span class="axis-x">X</span><b id="vx">0.00</b></label>
+    <input type="range" id="sx" min="-1.4" max="1.4" step="0.01" value="0">
+  </div>
+  <div class="row">
+    <label><span class="axis-y">Y</span><b id="vy">2.50</b></label>
+    <input type="range" id="sy" min="0.8" max="4.2" step="0.01" value="2.5">
+  </div>
+  <div class="row">
+    <label><span class="axis-z">Z</span><b id="vz">0.00</b></label>
+    <input type="range" id="sz" min="-1.4" max="1.4" step="0.01" value="0">
+  </div>
+</div>
+<div id="hint">Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+  const wrap = document.getElementById('canvas-wrap');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d0f12);
+  scene.fog = new THREE.Fog(0x0d0f12, 12, 30);
+
+  const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(6, 5, 7);
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  wrap.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 3;
+  controls.maxDistance = 20;
+  controls.target.set(0, 2, 0);
+
+  // lights
+  scene.add(new THREE.AmbientLight(0x8899aa, 0.5));
+  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(5, 10, 4);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024,1024);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x4fb0ff, 0.35);
+  rim.position.set(-6, 4, -6);
+  scene.add(rim);
+
+  // ground
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(14, 48),
+    new THREE.MeshStandardMaterial({color:0x14171b, roughness:0.95, metalness:0.05})
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const grid = new THREE.GridHelper(14, 28, 0x2a2f36, 0x1f2328);
+  grid.position.y = 0.01;
+  scene.add(grid);
+
+  // frame geometry params
+  const HALF = 2.2;       // pillar half-spacing (corner at ±HALF,±HALF)
+  const PILLAR_H = 5.0;
+  const CUBE_SIZE = 0.6;
+  const corners = [
+    new THREE.Vector3( HALF, 0,  HALF),
+    new THREE.Vector3( HALF, 0, -HALF),
+    new THREE.Vector3(-HALF, 0, -HALF),
+    new THREE.Vector3(-HALF, 0,  HALF),
+  ];
+
+  const steelMat = new THREE.MeshStandardMaterial({color:0x555b63, roughness:0.35, metalness:0.85});
+  const darkMat  = new THREE.MeshStandardMaterial({color:0x2b2f34, roughness:0.5, metalness:0.6});
+  const motorMat = new THREE.MeshStandardMaterial({color:0x1a1c1f, roughness:0.4, metalness:0.7});
+  const pulleyMat= new THREE.MeshStandardMaterial({color:0x8a8f96, roughness:0.25, metalness:0.9});
+  const cableMat = new THREE.MeshStandardMaterial({color:0x111214, roughness:0.5, metalness:0.3});
+
+  const pulleyPoints = []; // top pulley world positions
+
+  corners.forEach((c) => {
+    const group = new THREE.Group();
+    group.position.set(c.x, 0, c.z);
+    scene.add(group);
+
+    // base plate
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,0.12,16), darkMat);
+    plate.position.y = 0.06;
+    plate.castShadow = plate.receiveShadow = true;
+    group.add(plate);
+
+    // motor housing
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.5,16), motorMat);
+    motor.position.y = 0.12 + 0.25;
+    motor.castShadow = true;
+    group.add(motor);
+    const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.56,12), pulleyMat);
+    spool.position.y = motor.position.y;
+    group.add(spool);
+
+    // pillar
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,PILLAR_H,12), steelMat);
+    pillar.position.y = PILLAR_H/2 + 0.12;
+    pillar.castShadow = true;
+    group.add(pillar);
+
+    // top bracket + pulley (torus)
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.18,0.3), darkMat);
+    bracket.position.y = PILLAR_H + 0.12;
+    bracket.castShadow = true;
+    group.add(bracket);
+
+    const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.045,10,20), pulleyMat);
+    pulley.rotation.y = Math.atan2(-c.z, -c.x) + Math.PI/2;
+    pulley.position.set(0, PILLAR_H + 0.12, 0);
+    pulley.castShadow = true;
+    group.add(pulley);
+
+    const worldPulley = new THREE.Vector3(c.x, PILLAR_H + 0.12, c.z);
+    pulleyPoints.push(worldPulley);
+
+    // vertical cable segment: motor -> pulley
+    const vCable = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012,0.012, PILLAR_H - 0.15, 6),
+      cableMat
+    );
+    vCable.position.set(0, 0.37 + (PILLAR_H - 0.15)/2, 0);
+    group.add(vCable);
+  });
+
+  // cube
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE),
+    new THREE.MeshStandardMaterial({color:0xff8a4f, roughness:0.3, metalness:0.4})
+  );
+  cube.castShadow = true;
+  scene.add(cube);
+
+  // cube top corner offsets (local)
+  const half = CUBE_SIZE/2;
+  const cubeCornerOffsets = [
+    new THREE.Vector3( half, half,  half),
+    new THREE.Vector3( half, half, -half),
+    new THREE.Vector3(-half, half, -half),
+    new THREE.Vector3(-half, half,  half),
+  ];
+
+  // 4 dynamic cables: pulley -> cube corner
+  const cables = corners.map(() => {
+    const geo = new THREE.CylinderGeometry(0.012, 0.012, 1, 6);
+    const mesh = new THREE.Mesh(geo, cableMat);
+    scene.add(mesh);
+    return mesh;
+  });
+
+  function updateCube(x, y, z){
+    cube.position.set(x, y, z);
+    const worldCorner = new THREE.Vector3();
+    for (let i=0;i<4;i++){
+      worldCorner.copy(cubeCornerOffsets[i]).add(cube.position);
+      const p = pulleyPoints[i];
+      const mid = new THREE.Vector3().addVectors(p, worldCorner).multiplyScalar(0.5);
+      const dist = p.distanceTo(worldCorner);
+      const cable = cables[i];
+      cable.position.copy(mid);
+      cable.scale.set(1, Math.max(dist, 0.001), 1);
+      cable.lookAt(p);
+      cable.rotateX(Math.PI/2);
+    }
+  }
+  updateCube(0, 2.5, 0);
+
+  // slider wiring
+  const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
+  const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
+  function onSlide(){
+    const x = parseFloat(sx.value), y = parseFloat(sy.value), z = parseFloat(sz.value);
+    vx.textContent = x.toFixed(2);
+    vy.textContent = y.toFixed(2);
+    vz.textContent = z.toFixed(2);
+    updateCube(x, y, z);
+  }
+  [sx,sy,sz].forEach(el => el.addEventListener('input', onSlide));
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  function animate(){
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
