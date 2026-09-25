@@ -21,7 +21,7 @@
     position: absolute; top: 0; left: 0; right: 0; height: 48px;
     display: flex; align-items: center; padding: 0 20px; z-index: 100;
     justify-content: space-between;
-    pointer-events: none; /* Allows clicking through the empty space */
+    pointer-events: none; 
   }
   .brand { 
     font-weight: bold; font-size: 18px; color: var(--accent); letter-spacing: 0.05em; 
@@ -182,16 +182,15 @@
 
   // --- VIRTUAL DISPLAY 2 (LIVE LAPTOP SCREEN) ---
   const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
-  
-  // TWEAKED: Increased size slightly, set to DoubleSide, and pushed coordinates out so it doesn't clip into the model
-  const laptopScreenGeo = new THREE.PlaneGeometry(1.85, 1.15); 
-  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
+  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); // Size of typical model laptop screen
+  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture });
   const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
-  
-  // TWEAKED Coordinates based on the visual output
-  liveLaptopScreen.position.set(43.7, 3.85, 0.1); 
-  liveLaptopScreen.rotation.y = Math.PI / 2; // Facing +X
-  liveLaptopScreen.rotation.x = -0.22; // Tilt back
+    liveLaptopScreen.rotation.order = "YXZ"; 
+  // Position it exactly over the laptop keyboard in the GLB model
+  // (Man is at x:45, y:0, z:0, facing -X. Desk is around X: 44. Screen faces +X)
+  liveLaptopScreen.position.set(35.95, 10.5, 0.250); 
+  liveLaptopScreen.rotation.y = Math.PI / 2; // Face the man (+X)
+  liveLaptopScreen.rotation.x = -0.4;       // Perfectly tilt back along the new local axis
   scene.add(liveLaptopScreen);
 
   // --- UI DRAG LOGIC ---
