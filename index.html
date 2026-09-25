@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Advanced CDPR Simulator</title>
+<title>Advanced CDPR Simulator - Physics Mode</title>
 <style>
   :root {
-    --bg: #0d0f12; --panel: #16191d; --panel2: #1d2126; --line: #2a2f36; 
-    --text: #e6e9ec; --muted: #8b939c; --accent: #4fb0ff; --accent2: #ff8a4f;
+    --bg: #0d0f12; --panel: #16191d; --line: #2a2f36; 
+    --text: #e6e9ec; --muted: #8b939c; --accent: #4fb0ff;
   }
   [data-theme="light"] {
-    --bg: #f0f2f5; --panel: #ffffff; --panel2: #f8f9fa; --line: #dee2e6; 
+    --bg: #f0f2f5; --panel: #ffffff; --line: #dee2e6; 
     --text: #212529; --muted: #6c757d; --accent: #0d6efd;
   }
   html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,sans-serif; overflow:hidden; }
@@ -46,24 +46,15 @@
 <div id="hud" class="ui-panel">
   <h1>End-Effector Pos</h1>
   <div class="row"><label>X <b id="vx">0.00</b></label><input type="range" id="sx" min="-6.0" max="6.0" step="0.01" value="0"></div>
-  <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="8.0" step="0.01" value="2.5"></div>
+  <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="10.0" step="0.01" value="2.5"></div>
   <div class="row"><label>Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-6.0" max="6.0" step="0.01" value="0"></div>
 </div>
 
 <div id="pillar-hud" class="ui-panel">
   <h1>Edit Pillar <span id="p-id"></span></h1>
-  <div class="row">
-    <label>Height <b id="vh">5.00</b></label>
-    <input type="range" id="sh" min="3.0" max="10.0" step="0.1" value="5.0">
-  </div>
-  <div class="row">
-    <label>Base X <b id="vpx">2.20</b></label>
-    <input type="range" id="spx" min="-6.0" max="6.0" step="0.1" value="2.2">
-  </div>
-  <div class="row">
-    <label>Base Z <b id="vpz">2.20</b></label>
-    <input type="range" id="spz" min="-6.0" max="6.0" step="0.1" value="2.2">
-  </div>
+  <div class="row"><label>Height <b id="vh">5.00</b></label><input type="range" id="sh" min="3.0" max="12.0" step="0.1" value="5.0"></div>
+  <div class="row"><label>Base X <b id="vpx">2.20</b></label><input type="range" id="spx" min="-8.0" max="8.0" step="0.1" value="2.2"></div>
+  <div class="row"><label>Base Z <b id="vpz">2.20</b></label><input type="range" id="spz" min="-8.0" max="8.0" step="0.1" value="2.2"></div>
   <button id="close-pillar" style="width:100%; margin-top:10px;">Close</button>
 </div>
 
@@ -82,10 +73,10 @@
   const wrap = document.getElementById('canvas-wrap');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0d0f12);
-  scene.fog = new THREE.Fog(0x0d0f12, 12, 30);
+  scene.fog = new THREE.Fog(0x0d0f12, 12, 35);
   
   const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
-  camera.position.set(8, 6, 9);
+  camera.position.set(10, 8, 12);
   
   const renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(innerWidth, innerHeight);
@@ -96,14 +87,12 @@
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 2, 0);
 
-  // --- LIGHTS & ENVIRONMENT ---
   const ambient = new THREE.AmbientLight(0x8899aa, 0.5); scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(5, 10, 4); key.castShadow = true; scene.add(key);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(5, 12, 4); key.castShadow = true; scene.add(key);
   
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(20, 64), new THREE.MeshStandardMaterial({color:0x14171b, roughness:0.95}));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(25, 64), new THREE.MeshStandardMaterial({color:0x14171b, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
-  
-  let grid = new THREE.GridHelper(20, 40, 0x2a2f36, 0x1f2328); grid.position.y = 0.01; scene.add(grid);
+  let grid = new THREE.GridHelper(24, 48, 0x2a2f36, 0x1f2328); grid.position.y = 0.01; scene.add(grid);
 
   // --- UI WIRING ---
   const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
@@ -112,7 +101,7 @@
   [sx,sy,sz].forEach(el => el.addEventListener('input', onSlide));
 
   // --- MATERIALS & PARAMS ---
-  const HALF = 3.0; const CUBE_SIZE = 0.6;
+  const HALF = 4.0; const CUBE_SIZE = 0.6;
   const steelMat = new THREE.MeshStandardMaterial({color:0x555b63, roughness:0.35, metalness:0.85});
   const darkMat = new THREE.MeshStandardMaterial({color:0x2b2f34, roughness:0.5});
   const pulleyMat= new THREE.MeshStandardMaterial({color:0x8a8f96, roughness:0.25, metalness:0.9});
@@ -123,15 +112,21 @@
     new THREE.Vector3(-HALF, 0, -HALF), new THREE.Vector3(-HALF, 0,  HALF)
   ];
   
-  // --- PILLAR GENERATION ---
   const pillarsData = [];
   const pulleyPoints = [];
+
+  // --- KINEMATIC TOP BOUNDARY MESH ---
+  // We use this invisible mesh to raycast the sloped ceiling
+  const ceilingGeo = new THREE.BufferGeometry();
+  const ceilingMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
+  const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
+  scene.add(ceilingMesh);
+  const downRaycaster = new THREE.Raycaster();
+  const downVector = new THREE.Vector3(0, -1, 0);
   
   corners.forEach((c, idx) => {
     const group = new THREE.Group(); group.position.set(c.x, 0, c.z); scene.add(group);
-    
     const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.5,16), darkMat); motor.position.y = 0.37; group.add(motor);
-    
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,1,12), steelMat);
     pillar.position.y = 0.37; pillar.userData = { isPillar: true, index: idx }; group.add(pillar);
     
@@ -139,12 +134,25 @@
     const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.18,0.3), darkMat); bracket.castShadow = true; bracketGroup.add(bracket);
     const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.045,10,20), pulleyMat);
     pulley.castShadow = true; bracketGroup.add(pulley);
-    
     const vCable = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1,6), cableMat); group.add(vCable);
 
     pillarsData.push({ group, pillar, bracketGroup, pulley, vCable, basex: c.x, basez: c.z });
     pulleyPoints.push(new THREE.Vector3());
   });
+
+  function updateCeilingMesh() {
+    const v = new Float32Array([
+      pulleyPoints[0].x, pulleyPoints[0].y, pulleyPoints[0].z,
+      pulleyPoints[1].x, pulleyPoints[1].y, pulleyPoints[1].z,
+      pulleyPoints[2].x, pulleyPoints[2].y, pulleyPoints[2].z,
+      
+      pulleyPoints[0].x, pulleyPoints[0].y, pulleyPoints[0].z,
+      pulleyPoints[2].x, pulleyPoints[2].y, pulleyPoints[2].z,
+      pulleyPoints[3].x, pulleyPoints[3].y, pulleyPoints[3].z,
+    ]);
+    ceilingGeo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    ceilingGeo.computeVertexNormals();
+  }
 
   function updatePillarGeometry(idx, h, x, z) {
     const p = pillarsData[idx];
@@ -160,10 +168,10 @@
       p.group.position.set(x, 0, z);
     }
     
-    // Orient pulley towards center loosely
     p.pulley.rotation.y = Math.atan2(-p.basez, -p.basex) + Math.PI/2;
     pulleyPoints[idx].set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
     
+    updateCeilingMesh();
     if (cube) {
       const clamped = clampPosition(cube.position.x, cube.position.y, cube.position.z);
       updateCube(clamped.x, clamped.y, clamped.z);
@@ -174,35 +182,52 @@
   const cube = new THREE.Mesh(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), new THREE.MeshStandardMaterial({color:0xff8a4f}));
   cube.castShadow = true; scene.add(cube); cube.position.set(0, 2.5, 0);
   
-  const cubeCornerOffsets = [
+  const baseCornerOffsets = [
     new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2), new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, -CUBE_SIZE/2),
     new THREE.Vector3(-CUBE_SIZE/2, CUBE_SIZE/2, -CUBE_SIZE/2), new THREE.Vector3(-CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2)
   ];
   const cables = corners.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), cableMat); scene.add(m); return m; });
 
+  function getCeilingDataAt(x, z) {
+    downRaycaster.set(new THREE.Vector3(x, 100, z), downVector);
+    const intersects = downRaycaster.intersectObject(ceilingMesh);
+    return intersects.length > 0 ? intersects[0] : null;
+  }
+
   function clampPosition(x, y, z) {
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxY = Infinity;
-    pillarsData.forEach(p => {
-      if (p.basex < minX) minX = p.basex; if (p.basex > maxX) maxX = p.basex;
-      if (p.basez < minZ) minZ = p.basez; if (p.basez > maxZ) maxZ = p.basez;
-      const pulleyY = 0.37 + p.pillar.scale.y;
-      if (pulleyY < maxY) maxY = pulleyY;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    pulleyPoints.forEach(p => {
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
     });
-    const margin = CUBE_SIZE; // Prevent going exactly into the pillars
+    
+    const margin = CUBE_SIZE; 
+    let clampedX = Math.max(minX + margin, Math.min(maxX - margin, x));
+    let clampedZ = Math.max(minZ + margin, Math.min(maxZ - margin, z));
+    
+    const ceilingHit = getCeilingDataAt(clampedX, clampedZ);
+    let maxY = ceilingHit ? ceilingHit.point.y - (CUBE_SIZE/2) - 0.1 : 5.0; 
+
     return {
-      x: Math.max(minX + margin, Math.min(maxX - margin, x)),
-      y: Math.max(CUBE_SIZE/2, Math.min(maxY - margin, y)), // keep above ground & below lowest pulley
-      z: Math.max(minZ + margin, Math.min(maxZ - margin, z))
+      x: clampedX,
+      y: Math.max(CUBE_SIZE/2, Math.min(maxY, y)),
+      z: clampedZ,
+      normal: ceilingHit ? ceilingHit.face.normal : new THREE.Vector3(0, 1, 0)
     };
   }
 
   function updateCube(rawX, rawY, rawZ) {
-    const {x, y, z} = clampPosition(rawX, rawY, rawZ);
-    cube.position.set(x, y, z);
-    const worldCorner = new THREE.Vector3();
+    const data = clampPosition(rawX, rawY, rawZ);
+    cube.position.set(data.x, data.y, data.z);
     
+    // Physics Approximation: Align cube UP with the tension gradient (ceiling normal)
+    const up = new THREE.Vector3(0, 1, 0);
+    cube.quaternion.setFromUnitVectors(up, data.normal);
+
+    const worldCorner = new THREE.Vector3();
     for (let i=0; i<4; i++) {
-      worldCorner.copy(cubeCornerOffsets[i]).add(cube.position);
+      // Apply rotation to the local corner offsets
+      worldCorner.copy(baseCornerOffsets[i]).applyQuaternion(cube.quaternion).add(cube.position);
       const pt = pulleyPoints[i];
       cables[i].position.copy(pt).add(worldCorner).multiplyScalar(0.5);
       cables[i].scale.set(1, Math.max(pt.distanceTo(worldCorner), 0.001), 1);
@@ -210,25 +235,18 @@
     }
     
     if (sx && sy && sz) {
-      sx.value = x; sy.value = y; sz.value = z;
-      vx.textContent = x.toFixed(2); vy.textContent = y.toFixed(2); vz.textContent = z.toFixed(2);
+      sx.value = data.x; sy.value = data.y; sz.value = data.z;
+      vx.textContent = data.x.toFixed(2); vy.textContent = data.y.toFixed(2); vz.textContent = data.z.toFixed(2);
     }
   }
 
-  // Initialize
-  pillarsData.forEach((_, i) => updatePillarGeometry(i, 6.0, undefined, undefined));
+  pillarsData.forEach((_, i) => updatePillarGeometry(i, Math.random()*4 + 4, undefined, undefined));
 
-  // --- TRANSFORM CONTROLS ---
   const tControls = new THREE.TransformControls(camera, renderer.domElement);
   tControls.attach(cube); scene.add(tControls);
-  
   tControls.addEventListener('dragging-changed', (e) => controls.enabled = !e.value);
-  tControls.addEventListener('change', () => {
-    // Intercept free-dragging and force inside bounds
-    updateCube(cube.position.x, cube.position.y, cube.position.z);
-  });
+  tControls.addEventListener('change', () => { updateCube(cube.position.x, cube.position.y, cube.position.z); });
 
-  // --- RAYCASTING & PILLAR UI ---
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let activePillarIndex = -1;
@@ -249,7 +267,6 @@
       pillarHud.style.display = 'block';
       pId.innerText = (activePillarIndex + 1);
       const p = pillarsData[activePillarIndex];
-      
       sh.value = p.pillar.scale.y; vh.innerText = p.pillar.scale.y.toFixed(2);
       spx.value = p.basex; vpx.innerText = p.basex.toFixed(2);
       spz.value = p.basez; vpz.innerText = p.basez.toFixed(2);
@@ -266,7 +283,6 @@
   [sh, spx, spz].forEach(el => el.addEventListener('input', onPillarUpdate));
   document.getElementById('close-pillar').addEventListener('click', () => pillarHud.style.display = 'none');
 
-  // --- THEME TOGGLE ---
   let isDark = true;
   document.getElementById('btn-theme').addEventListener('click', () => {
     isDark = !isDark; document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -274,7 +290,7 @@
     scene.background.setHex(bgCol); scene.fog.color.setHex(bgCol);
     ground.material.color.setHex(isDark ? 0x14171b : 0xe2e8f0);
     scene.remove(grid);
-    grid = new THREE.GridHelper(20, 40, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
+    grid = new THREE.GridHelper(24, 48, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
     grid.position.y = 0.01; scene.add(grid);
   });
 
