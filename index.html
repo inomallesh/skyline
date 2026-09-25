@@ -97,6 +97,12 @@
   
   let grid = new THREE.GridHelper(14, 28, 0x2a2f36, 0x1f2328); grid.position.y = 0.01; scene.add(grid);
 
+  // --- UI WIRING (Moved up to prevent ReferenceError) ---
+  const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
+  const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
+  const onSlide = () => updateCube(parseFloat(sx.value), parseFloat(sy.value), parseFloat(sz.value));
+  [sx,sy,sz].forEach(el => el.addEventListener('input', onSlide));
+
   // --- MATERIALS & PARAMS ---
   const HALF = 2.2; const CUBE_SIZE = 0.6;
   const steelMat = new THREE.MeshStandardMaterial({color:0x555b63, roughness:0.35, metalness:0.85});
@@ -120,7 +126,6 @@
     const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.5,16), darkMat); motor.position.y = 0.37; group.add(motor);
     
     // Variable height parts
-    const currentH = 5.0;
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,1,12), steelMat);
     pillar.position.y = 0.37; pillar.userData = { isPillar: true, index: idx };
     group.add(pillar);
@@ -144,12 +149,15 @@
     p.vCable.scale.set(1, h, 1);
     p.vCable.position.set(0, 0.37 + h/2, 0);
     pulleyPoints[idx].set(p.basex, 0.37 + h, p.basez);
-    updateCube(cube.position.x, cube.position.y, cube.position.z);
+    
+    // Only update cube if it has been initialized
+    if (cube) updateCube(cube.position.x, cube.position.y, cube.position.z);
   }
 
   // --- CUBE & CABLES ---
   const cube = new THREE.Mesh(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), new THREE.MeshStandardMaterial({color:0xff8a4f}));
   cube.castShadow = true; scene.add(cube);
+  cube.position.set(0, 2.5, 0);
   
   const cubeCornerOffsets = [
     new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2), new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, -CUBE_SIZE/2),
@@ -167,12 +175,14 @@
       cables[i].scale.set(1, Math.max(pt.distanceTo(worldCorner), 0.001), 1);
       cables[i].lookAt(pt); cables[i].rotateX(Math.PI/2);
     }
-    // Sync HUD
-    sx.value = x; sy.value = y; sz.value = z;
-    vx.textContent = x.toFixed(2); vy.textContent = y.toFixed(2); vz.textContent = z.toFixed(2);
+    // Sync HUD safely
+    if (sx && sy && sz) {
+      sx.value = x; sy.value = y; sz.value = z;
+      vx.textContent = x.toFixed(2); vy.textContent = y.toFixed(2); vz.textContent = z.toFixed(2);
+    }
   }
 
-  // Initialize
+  // Initialize pillar heights now that UI and cube references exist
   pillarsData.forEach((_, i) => setPillarHeight(i, 5.0));
 
   // --- TRANSFORM CONTROLS (Free moving cube) ---
@@ -184,12 +194,6 @@
     updateCube(cube.position.x, cube.position.y, cube.position.z);
   });
 
-  // --- UI WIRING ---
-  const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
-  const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
-  const onSlide = () => updateCube(parseFloat(sx.value), parseFloat(sy.value), parseFloat(sz.value));
-  [sx,sy,sz].forEach(el => el.addEventListener('input', onSlide));
-
   // --- RAYCASTING (Clicking Pillars) ---
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
@@ -197,14 +201,14 @@
   const pillarHud = document.getElementById('pillar-hud'), pId = document.getElementById('p-id');
   const sh = document.getElementById('sh'), vh = document.getElementById('vh');
 
-  window.addEventListener('click', (e) => {
+  window.addEventListener('pointerdown', (e) => {
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
     mouse.x = (e.clientX / innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(scene.children, true);
     
-    const hit = intersects.find(x => x.object.userData.isPillar);
+    const hit = intersects.find(x => x.object.userData && x.object.userData.isPillar);
     if(hit) {
       activePillarIndex = hit.object.userData.index;
       pillarHud.style.display = 'block';
