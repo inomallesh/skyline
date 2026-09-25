@@ -45,16 +45,16 @@
 
 <div id="hud" class="ui-panel">
   <h1>End-Effector Pos</h1>
-  <div class="row"><label>X <b id="vx">0.00</b></label><input type="range" id="sx" min="-6.0" max="6.0" step="0.01" value="0"></div>
+  <div class="row"><label>X <b id="vx">0.00</b></label><input type="range" id="sx" min="-10.0" max="10.0" step="0.01" value="0"></div>
   <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="12.0" step="0.01" value="2.5"></div>
-  <div class="row"><label>Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-6.0" max="6.0" step="0.01" value="0"></div>
+  <div class="row"><label>Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-10.0" max="10.0" step="0.01" value="0"></div>
 </div>
 
 <div id="pillar-hud" class="ui-panel">
   <h1>Edit Pillar <span id="p-id"></span></h1>
   <div class="row"><label>Height <b id="vh">6.00</b></label><input type="range" id="sh" min="3.0" max="12.0" step="0.1" value="6.0"></div>
-  <div class="row"><label>Base X <b id="vpx">2.20</b></label><input type="range" id="spx" min="-8.0" max="8.0" step="0.1" value="2.2"></div>
-  <div class="row"><label>Base Z <b id="vpz">2.20</b></label><input type="range" id="spz" min="-8.0" max="8.0" step="0.1" value="2.2"></div>
+  <div class="row"><label>Base X <b id="vpx">2.20</b></label><input type="range" id="spx" min="-10.0" max="10.0" step="0.1" value="2.2"></div>
+  <div class="row"><label>Base Z <b id="vpz">2.20</b></label><input type="range" id="spz" min="-10.0" max="10.0" step="0.1" value="2.2"></div>
   <button id="close-pillar" style="width:100%; margin-top:10px;">Close Gizmo</button>
 </div>
 
@@ -72,7 +72,7 @@
   // --- SCENE SETUP ---
   const wrap = document.getElementById('canvas-wrap');
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf0f2f5); // Default Light Theme
+  scene.background = new THREE.Color(0xf0f2f5);
   
   const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
   camera.position.set(10, 8, 12);
@@ -86,8 +86,18 @@
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 2, 0);
 
-  const ambient = new THREE.AmbientLight(0x8899aa, 0.6); scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xffffff, 0.8); key.position.set(5, 12, 4); key.castShadow = true; scene.add(key);
+  // --- LIGHTING (Enhanced for Dark Mode Visibility) ---
+  const ambient = new THREE.AmbientLight(0x8899aa, 0.7); 
+  scene.add(ambient);
+  
+  const key = new THREE.DirectionalLight(0xffffff, 1.0); 
+  key.position.set(5, 12, 4); 
+  key.castShadow = true; 
+  scene.add(key);
+
+  const fill = new THREE.DirectionalLight(0x4fb0ff, 0.4); 
+  fill.position.set(-8, 6, -8); 
+  scene.add(fill);
   
   const ground = new THREE.Mesh(new THREE.CircleGeometry(25, 64), new THREE.MeshStandardMaterial({color:0xe2e8f0, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
@@ -130,7 +140,6 @@
     pulleyPoints.push(new THREE.Vector3());
   });
 
-  // A hidden control handle used to anchor the Transform Gizmo to the active pillar
   const pillarHandle = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), new THREE.MeshBasicMaterial({visible:false}));
   scene.add(pillarHandle);
 
@@ -169,33 +178,38 @@
 
   function clampPosition(x, y, z) {
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    let lowestPulleyHeight = Infinity;
     
     pulleyPoints.forEach(p => {
       if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
       if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
-      if (p.y < lowestPulleyHeight) lowestPulleyHeight = p.y;
     });
     
     const margin = CUBE_SIZE; 
     
-    // Hard ceiling based on the absolutely lowest pulley connected to the cube
-    const maxY = lowestPulleyHeight - (CUBE_SIZE/2) - 0.1;
+    // Strict bounding footprint (Prevents escaping the pillars)
+    let cx = Math.max(minX + margin, Math.min(maxX - margin, x));
+    let cz = Math.max(minZ + margin, Math.min(maxZ - margin, z));
 
-    return {
-      x: Math.max(minX + margin, Math.min(maxX - margin, x)),
-      y: Math.max(CUBE_SIZE/2, Math.min(maxY, y)),
-      z: Math.max(minZ + margin, Math.min(maxZ - margin, z))
-    };
+    // Inverse Distance Weighting (IDW) for Dynamic Ceiling
+    // Allows cube to go high near tall pillars, low near short pillars
+    let num = 0, den = 0;
+    pulleyPoints.forEach(p => {
+      let d = Math.hypot(p.x - cx, p.z - cz);
+      let w = 1 / (d * d + 0.0001); // Prevent division by zero
+      num += (p.y - CUBE_SIZE/2 - 0.1) * w;
+      den += w;
+    });
+    
+    let dynamicCeilingY = num / den;
+    let cy = Math.max(CUBE_SIZE/2, Math.min(dynamicCeilingY, y));
+
+    return { x: cx, y: cy, z: cz };
   }
 
   function updateCube(rawX, rawY, rawZ) {
     const data = clampPosition(rawX, rawY, rawZ);
     cube.position.set(data.x, data.y, data.z);
     
-    // Cube remains completely flat
-    cube.rotation.set(0, 0, 0);
-
     const worldCorner = new THREE.Vector3();
     for (let i=0; i<4; i++) {
       worldCorner.copy(baseCornerOffsets[i]).add(cube.position);
@@ -211,7 +225,6 @@
     }
   }
 
-  // Initialize all pillars uniformly
   pillarsData.forEach((_, i) => updatePillarGeometry(i, 6.0, undefined, undefined));
 
   // --- TRANSFORM CONTROLS ---
@@ -221,24 +234,23 @@
   
   tControls.addEventListener('change', () => { 
     if (tControls.object === cube) {
-      updateCube(cube.position.x, cube.position.y, cube.position.z); 
+      // Forcefully restrict Gizmo dragging
+      const d = clampPosition(cube.position.x, cube.position.y, cube.position.z);
+      cube.position.set(d.x, d.y, d.z); 
+      updateCube(d.x, d.y, d.z); 
     } else if (tControls.object === pillarHandle && activePillarIndex > -1) {
-      // Isolate Pillar Gizmo values
       let h = pillarHandle.position.y - 0.37;
-      h = Math.max(3.0, Math.min(12.0, h)); // Restrict scale
+      h = Math.max(3.0, Math.min(12.0, h)); 
       
-      let x = pillarHandle.position.x;
-      let z = pillarHandle.position.z;
+      let px = Math.max(-12, Math.min(12, pillarHandle.position.x));
+      let pz = Math.max(-12, Math.min(12, pillarHandle.position.z));
       
-      // Force gizmo to respect min/max scale height limits
-      pillarHandle.position.y = h + 0.37;
-
-      updatePillarGeometry(activePillarIndex, h, x, z);
+      pillarHandle.position.set(px, h + 0.37, pz);
+      updatePillarGeometry(activePillarIndex, h, px, pz);
       
-      // Sync UI sliders seamlessly
       sh.value = h; vh.innerText = h.toFixed(2);
-      spx.value = x; vpx.innerText = x.toFixed(2);
-      spz.value = z; vpz.innerText = z.toFixed(2);
+      spx.value = px; vpx.innerText = px.toFixed(2);
+      spz.value = pz; vpz.innerText = pz.toFixed(2);
     }
   });
 
@@ -251,7 +263,6 @@
   const spz = document.getElementById('spz'), vpz = document.getElementById('vpz');
 
   window.addEventListener('pointerdown', (e) => {
-    // Avoid re-raycasting if clicking on HTML UI
     if(e.target.tagName !== 'CANVAS') return;
     
     mouse.x = (e.clientX / innerWidth) * 2 - 1; 
@@ -270,7 +281,6 @@
       activePillarIndex = hitPillar.object.userData.index;
       const p = pillarsData[activePillarIndex];
       
-      // Snap invisible handle to top of active pillar and attach gizmo
       pillarHandle.position.set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
       tControls.attach(pillarHandle);
       
@@ -288,7 +298,6 @@
       vh.innerText = h.toFixed(2); vpx.innerText = x.toFixed(2); vpz.innerText = z.toFixed(2);
       updatePillarGeometry(activePillarIndex, h, x, z);
       
-      // Keep gizmo snapped when editing via sliders
       if (tControls.object === pillarHandle) {
         pillarHandle.position.set(x, h + 0.37, z);
       }
@@ -307,9 +316,20 @@
     document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
     e.target.innerText = isDark ? "Toggle Light Mode" : "Toggle Dark Mode";
     
-    const bgCol = isDark ? 0x0d0f12 : 0xf0f2f5;
-    scene.background.setHex(bgCol); 
-    ground.material.color.setHex(isDark ? 0x14171b : 0xe2e8f0);
+    // Dynamic Lighting adjustments for visibility
+    if (isDark) {
+      scene.background.setHex(0x0d0f12);
+      ground.material.color.setHex(0x14171b);
+      ambient.intensity = 1.6;  // Massive visibility boost
+      key.intensity = 1.6;
+      fill.intensity = 1.2;
+    } else {
+      scene.background.setHex(0xf0f2f5);
+      ground.material.color.setHex(0xe2e8f0);
+      ambient.intensity = 0.7;
+      key.intensity = 1.0;
+      fill.intensity = 0.4;
+    }
     
     scene.remove(grid);
     grid = new THREE.GridHelper(24, 48, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
