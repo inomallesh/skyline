@@ -22,7 +22,7 @@
     box-shadow:0 8px 24px rgba(0,0,0,.2);
   }
   #hud { top:16px; left:16px; width:240px; }
-  #pillar-hud { top:16px; right:16px; width:200px; display:none; }
+  #pillar-hud { top:16px; right:16px; width:220px; display:none; }
   
   h1 { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; font-weight:600; }
   .row { margin-bottom:14px; }
@@ -45,16 +45,24 @@
 
 <div id="hud" class="ui-panel">
   <h1>End-Effector Pos</h1>
-  <div class="row"><label>X <b id="vx">0.00</b></label><input type="range" id="sx" min="-2.0" max="2.0" step="0.01" value="0"></div>
-  <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="6.0" step="0.01" value="2.5"></div>
-  <div class="row"><label>Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-2.0" max="2.0" step="0.01" value="0"></div>
+  <div class="row"><label>X <b id="vx">0.00</b></label><input type="range" id="sx" min="-6.0" max="6.0" step="0.01" value="0"></div>
+  <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="8.0" step="0.01" value="2.5"></div>
+  <div class="row"><label>Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-6.0" max="6.0" step="0.01" value="0"></div>
 </div>
 
 <div id="pillar-hud" class="ui-panel">
   <h1>Edit Pillar <span id="p-id"></span></h1>
   <div class="row">
     <label>Height <b id="vh">5.00</b></label>
-    <input type="range" id="sh" min="3.0" max="8.0" step="0.1" value="5.0">
+    <input type="range" id="sh" min="3.0" max="10.0" step="0.1" value="5.0">
+  </div>
+  <div class="row">
+    <label>Base X <b id="vpx">2.20</b></label>
+    <input type="range" id="spx" min="-6.0" max="6.0" step="0.1" value="2.2">
+  </div>
+  <div class="row">
+    <label>Base Z <b id="vpz">2.20</b></label>
+    <input type="range" id="spz" min="-6.0" max="6.0" step="0.1" value="2.2">
   </div>
   <button id="close-pillar" style="width:100%; margin-top:10px;">Close</button>
 </div>
@@ -62,7 +70,7 @@
 <div id="top-bar">
   <button id="btn-theme">Toggle Theme</button>
 </div>
-<div id="hint">Drag cube to move · Click pillars to resize</div>
+<div id="hint">Drag cube to move · Click pillars to edit</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -77,7 +85,7 @@
   scene.fog = new THREE.Fog(0x0d0f12, 12, 30);
   
   const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
-  camera.position.set(6, 5, 7);
+  camera.position.set(8, 6, 9);
   
   const renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(innerWidth, innerHeight);
@@ -92,19 +100,19 @@
   const ambient = new THREE.AmbientLight(0x8899aa, 0.5); scene.add(ambient);
   const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(5, 10, 4); key.castShadow = true; scene.add(key);
   
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(14, 48), new THREE.MeshStandardMaterial({color:0x14171b, roughness:0.95}));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(20, 64), new THREE.MeshStandardMaterial({color:0x14171b, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
   
-  let grid = new THREE.GridHelper(14, 28, 0x2a2f36, 0x1f2328); grid.position.y = 0.01; scene.add(grid);
+  let grid = new THREE.GridHelper(20, 40, 0x2a2f36, 0x1f2328); grid.position.y = 0.01; scene.add(grid);
 
-  // --- UI WIRING (Moved up to prevent ReferenceError) ---
+  // --- UI WIRING ---
   const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
   const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
   const onSlide = () => updateCube(parseFloat(sx.value), parseFloat(sy.value), parseFloat(sz.value));
   [sx,sy,sz].forEach(el => el.addEventListener('input', onSlide));
 
   // --- MATERIALS & PARAMS ---
-  const HALF = 2.2; const CUBE_SIZE = 0.6;
+  const HALF = 3.0; const CUBE_SIZE = 0.6;
   const steelMat = new THREE.MeshStandardMaterial({color:0x555b63, roughness:0.35, metalness:0.85});
   const darkMat = new THREE.MeshStandardMaterial({color:0x2b2f34, roughness:0.5});
   const pulleyMat= new THREE.MeshStandardMaterial({color:0x8a8f96, roughness:0.25, metalness:0.9});
@@ -122,42 +130,49 @@
   corners.forEach((c, idx) => {
     const group = new THREE.Group(); group.position.set(c.x, 0, c.z); scene.add(group);
     
-    // Base parts
     const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.5,16), darkMat); motor.position.y = 0.37; group.add(motor);
     
-    // Variable height parts
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,1,12), steelMat);
-    pillar.position.y = 0.37; pillar.userData = { isPillar: true, index: idx };
-    group.add(pillar);
+    pillar.position.y = 0.37; pillar.userData = { isPillar: true, index: idx }; group.add(pillar);
     
     const bracketGroup = new THREE.Group(); group.add(bracketGroup);
     const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.18,0.3), darkMat); bracket.castShadow = true; bracketGroup.add(bracket);
     const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.045,10,20), pulleyMat);
-    pulley.rotation.y = Math.atan2(-c.z, -c.x) + Math.PI/2; pulley.castShadow = true; bracketGroup.add(pulley);
+    pulley.castShadow = true; bracketGroup.add(pulley);
     
     const vCable = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1,6), cableMat); group.add(vCable);
 
-    pillarsData.push({ group, pillar, bracketGroup, vCable, basex: c.x, basez: c.z });
+    pillarsData.push({ group, pillar, bracketGroup, pulley, vCable, basex: c.x, basez: c.z });
     pulleyPoints.push(new THREE.Vector3());
   });
 
-  function setPillarHeight(idx, h) {
+  function updatePillarGeometry(idx, h, x, z) {
     const p = pillarsData[idx];
-    p.pillar.scale.set(1, h, 1);
-    p.pillar.position.y = 0.37 + h/2;
-    p.bracketGroup.position.set(0, 0.37 + h, 0);
-    p.vCable.scale.set(1, h, 1);
-    p.vCable.position.set(0, 0.37 + h/2, 0);
-    pulleyPoints[idx].set(p.basex, 0.37 + h, p.basez);
+    if(h !== undefined) {
+      p.pillar.scale.set(1, h, 1);
+      p.pillar.position.y = 0.37 + h/2;
+      p.bracketGroup.position.set(0, 0.37 + h, 0);
+      p.vCable.scale.set(1, h, 1);
+      p.vCable.position.set(0, 0.37 + h/2, 0);
+    }
+    if(x !== undefined && z !== undefined) {
+      p.basex = x; p.basez = z;
+      p.group.position.set(x, 0, z);
+    }
     
-    // Only update cube if it has been initialized
-    if (cube) updateCube(cube.position.x, cube.position.y, cube.position.z);
+    // Orient pulley towards center loosely
+    p.pulley.rotation.y = Math.atan2(-p.basez, -p.basex) + Math.PI/2;
+    pulleyPoints[idx].set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
+    
+    if (cube) {
+      const clamped = clampPosition(cube.position.x, cube.position.y, cube.position.z);
+      updateCube(clamped.x, clamped.y, clamped.z);
+    }
   }
 
-  // --- CUBE & CABLES ---
+  // --- CUBE, CABLES & CONSTRAINTS ---
   const cube = new THREE.Mesh(new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), new THREE.MeshStandardMaterial({color:0xff8a4f}));
-  cube.castShadow = true; scene.add(cube);
-  cube.position.set(0, 2.5, 0);
+  cube.castShadow = true; scene.add(cube); cube.position.set(0, 2.5, 0);
   
   const cubeCornerOffsets = [
     new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2), new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, -CUBE_SIZE/2),
@@ -165,9 +180,27 @@
   ];
   const cables = corners.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), cableMat); scene.add(m); return m; });
 
-  function updateCube(x, y, z) {
+  function clampPosition(x, y, z) {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxY = Infinity;
+    pillarsData.forEach(p => {
+      if (p.basex < minX) minX = p.basex; if (p.basex > maxX) maxX = p.basex;
+      if (p.basez < minZ) minZ = p.basez; if (p.basez > maxZ) maxZ = p.basez;
+      const pulleyY = 0.37 + p.pillar.scale.y;
+      if (pulleyY < maxY) maxY = pulleyY;
+    });
+    const margin = CUBE_SIZE; // Prevent going exactly into the pillars
+    return {
+      x: Math.max(minX + margin, Math.min(maxX - margin, x)),
+      y: Math.max(CUBE_SIZE/2, Math.min(maxY - margin, y)), // keep above ground & below lowest pulley
+      z: Math.max(minZ + margin, Math.min(maxZ - margin, z))
+    };
+  }
+
+  function updateCube(rawX, rawY, rawZ) {
+    const {x, y, z} = clampPosition(rawX, rawY, rawZ);
     cube.position.set(x, y, z);
     const worldCorner = new THREE.Vector3();
+    
     for (let i=0; i<4; i++) {
       worldCorner.copy(cubeCornerOffsets[i]).add(cube.position);
       const pt = pulleyPoints[i];
@@ -175,36 +208,38 @@
       cables[i].scale.set(1, Math.max(pt.distanceTo(worldCorner), 0.001), 1);
       cables[i].lookAt(pt); cables[i].rotateX(Math.PI/2);
     }
-    // Sync HUD safely
+    
     if (sx && sy && sz) {
       sx.value = x; sy.value = y; sz.value = z;
       vx.textContent = x.toFixed(2); vy.textContent = y.toFixed(2); vz.textContent = z.toFixed(2);
     }
   }
 
-  // Initialize pillar heights now that UI and cube references exist
-  pillarsData.forEach((_, i) => setPillarHeight(i, 5.0));
+  // Initialize
+  pillarsData.forEach((_, i) => updatePillarGeometry(i, 6.0, undefined, undefined));
 
-  // --- TRANSFORM CONTROLS (Free moving cube) ---
+  // --- TRANSFORM CONTROLS ---
   const tControls = new THREE.TransformControls(camera, renderer.domElement);
   tControls.attach(cube); scene.add(tControls);
   
   tControls.addEventListener('dragging-changed', (e) => controls.enabled = !e.value);
   tControls.addEventListener('change', () => {
+    // Intercept free-dragging and force inside bounds
     updateCube(cube.position.x, cube.position.y, cube.position.z);
   });
 
-  // --- RAYCASTING (Clicking Pillars) ---
+  // --- RAYCASTING & PILLAR UI ---
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let activePillarIndex = -1;
   const pillarHud = document.getElementById('pillar-hud'), pId = document.getElementById('p-id');
   const sh = document.getElementById('sh'), vh = document.getElementById('vh');
+  const spx = document.getElementById('spx'), vpx = document.getElementById('vpx');
+  const spz = document.getElementById('spz'), vpz = document.getElementById('vpz');
 
   window.addEventListener('pointerdown', (e) => {
-    if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-    mouse.x = (e.clientX / innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    if(e.target.closest('.ui-panel') || e.target.tagName === 'BUTTON') return;
+    mouse.x = (e.clientX / innerWidth) * 2 - 1; mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(scene.children, true);
     
@@ -213,33 +248,33 @@
       activePillarIndex = hit.object.userData.index;
       pillarHud.style.display = 'block';
       pId.innerText = (activePillarIndex + 1);
-      const currentHeight = pillarsData[activePillarIndex].pillar.scale.y;
-      sh.value = currentHeight; vh.innerText = currentHeight.toFixed(2);
+      const p = pillarsData[activePillarIndex];
+      
+      sh.value = p.pillar.scale.y; vh.innerText = p.pillar.scale.y.toFixed(2);
+      spx.value = p.basex; vpx.innerText = p.basex.toFixed(2);
+      spz.value = p.basez; vpz.innerText = p.basez.toFixed(2);
     }
   });
 
-  sh.addEventListener('input', () => {
+  const onPillarUpdate = () => {
     if(activePillarIndex > -1) {
-      const val = parseFloat(sh.value);
-      vh.innerText = val.toFixed(2);
-      setPillarHeight(activePillarIndex, val);
+      const h = parseFloat(sh.value), x = parseFloat(spx.value), z = parseFloat(spz.value);
+      vh.innerText = h.toFixed(2); vpx.innerText = x.toFixed(2); vpz.innerText = z.toFixed(2);
+      updatePillarGeometry(activePillarIndex, h, x, z);
     }
-  });
+  };
+  [sh, spx, spz].forEach(el => el.addEventListener('input', onPillarUpdate));
   document.getElementById('close-pillar').addEventListener('click', () => pillarHud.style.display = 'none');
 
   // --- THEME TOGGLE ---
   let isDark = true;
   document.getElementById('btn-theme').addEventListener('click', () => {
-    isDark = !isDark;
-    document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    
+    isDark = !isDark; document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
     const bgCol = isDark ? 0x0d0f12 : 0xf0f2f5;
-    scene.background.setHex(bgCol);
-    scene.fog.color.setHex(bgCol);
+    scene.background.setHex(bgCol); scene.fog.color.setHex(bgCol);
     ground.material.color.setHex(isDark ? 0x14171b : 0xe2e8f0);
-    
     scene.remove(grid);
-    grid = new THREE.GridHelper(14, 28, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
+    grid = new THREE.GridHelper(20, 40, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
     grid.position.y = 0.01; scene.add(grid);
   });
 
