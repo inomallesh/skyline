@@ -16,6 +16,27 @@
   html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,sans-serif; overflow:hidden; }
   #canvas-wrap { position:absolute; inset:0; }
   
+  /* Top Menu Bar */
+  #menu-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 48px;
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; padding: 0 20px; z-index: 100;
+    justify-content: space-between;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  .brand { font-weight: bold; font-size: 16px; color: var(--accent); letter-spacing: 0.05em; }
+  .menu-btns { display: flex; gap: 10px; }
+  
+  /* About Modal */
+  #about-modal {
+    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 24px; width: 320px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); z-index: 200;
+  }
+  #about-modal h2 { margin: 0 0 10px 0; font-size: 18px; color: var(--text); }
+  #about-modal p { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+  .close-btn { background: var(--accent); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+  
   .ui-panel {
     position:absolute; background:var(--panel); border:1px solid var(--line); 
     border-radius:10px; padding:14px 16px 18px; backdrop-filter:blur(6px); 
@@ -23,7 +44,7 @@
   }
   
   #hud { 
-    top:16px; left:16px; width:260px; 
+    top:64px; left:16px; width:260px; /* Shifted down to avoid menu bar */
     min-width:220px; max-width:400px; height:fit-content;
     resize:horizontal; overflow:hidden;
     display:flex; flex-direction:column;
@@ -57,10 +78,26 @@
 <body data-theme="light">
 <div id="canvas-wrap"></div>
 
+<!-- Top Menu Bar -->
+<div id="menu-bar">
+  <div class="brand">SpiderCam Simulator</div>
+  <div class="menu-btns">
+    <button id="btn-about">About</button>
+  </div>
+</div>
+
+<!-- About Modal -->
+<div id="about-modal">
+  <h2>About SpiderCam</h2>
+  <p>This is a 3D Cable-Driven Parallel Robot (CDPR) simulation. You can freely adjust the environment's anchor pillars, maneuver the central end-effector (camera), and rotate the gimbal payload using real-time physics constraints.</p>
+  <button class="close-btn" id="btn-close-about">Close</button>
+</div>
+
+<!-- Draggable HUD -->
 <div id="hud" class="ui-panel">
   <h1 id="drag-handle" title="Drag to move panel">End-Effector Pos</h1>
   <div class="row"><label>Pos X <b id="vx">0.00</b></label><input type="range" id="sx" min="-26.0" max="26.0" step="0.01" value="0"></div>
-  <div class="row"><label>Pos Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="20.0" step="0.01" value="2.5"></div>
+  <div class="row"><label>Pos Y <b id="vy">10.00</b></label><input type="range" id="sy" min="0.5" max="40.0" step="0.01" value="10.0"></div>
   <div class="row"><label>Pos Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-26.0" max="26.0" step="0.01" value="0"></div>
 </div>
 
@@ -77,13 +114,18 @@
 
 <script>
 (function(){
+  // --- MENU LOGIC ---
+  const aboutModal = document.getElementById('about-modal');
+  document.getElementById('btn-about').addEventListener('click', () => aboutModal.style.display = 'block');
+  document.getElementById('btn-close-about').addEventListener('click', () => aboutModal.style.display = 'none');
+
   // --- SCENE SETUP ---
   const wrap = document.getElementById('canvas-wrap');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf0f2f5);
   
   const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 300);
-  camera.position.set(40, 30, 50); // Moved camera out to see the larger rig
+  camera.position.set(50, 40, 60); // Adjusted to see the taller rig
   
   const renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(innerWidth, innerHeight);
@@ -92,14 +134,14 @@
   wrap.appendChild(renderer.domElement);
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 5, 0);
+  controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 10, 0);
 
   // --- LIGHTING ---
   const ambient = new THREE.AmbientLight(0x8899aa, 0.7); scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(15, 30, 15); key.castShadow = true; 
-  key.shadow.camera.top = 40; key.shadow.camera.bottom = -40; key.shadow.camera.left = -40; key.shadow.camera.right = 40;
+  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(15, 40, 15); key.castShadow = true; 
+  key.shadow.camera.top = 50; key.shadow.camera.bottom = -50; key.shadow.camera.left = -50; key.shadow.camera.right = 50;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0x4fb0ff, 0.4); fill.position.set(-20, 15, -20); scene.add(fill);
+  const fill = new THREE.DirectionalLight(0x4fb0ff, 0.4); fill.position.set(-20, 20, -20); scene.add(fill);
   
   const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 64), new THREE.MeshStandardMaterial({color:0xe2e8f0, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
@@ -132,7 +174,7 @@
   [sx,sy,sz].forEach(el => el.addEventListener('input', onPosSlide));
 
   // --- MATERIALS & PARAMS ---
-  const HALF = 25.0; // Scaled out to +/- 25
+  const HALF = 25.0; 
   const CUBE_SIZE = 1.0; 
   const steelMat = new THREE.MeshStandardMaterial({color:0x555b63, roughness:0.35, metalness:0.85});
   const darkMat = new THREE.MeshStandardMaterial({color:0x2b2f34, roughness:0.5});
@@ -191,7 +233,7 @@
   // --- END-EFFECTOR, GIMBAL, & MODEL LOADING ---
   const endEffector = new THREE.Group();
   scene.add(endEffector);
-  endEffector.position.set(0, 5.0, 0);
+  endEffector.position.set(0, 10.0, 0); // Start at height 10
 
   const eeFrame = new THREE.Mesh(
     new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), 
@@ -216,12 +258,11 @@
     eeFrame.material.wireframe = false;
   });
 
-  // Load Man working at desk Model (Placed outside the grid)
+  // Load Man working at desk Model
   loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
     const manModel = gltf.scene;
-    manModel.position.set(40, 0, 0); // Positioned safely outside the main active workspace
+    manModel.position.set(45, 0, 0); // Position set to 45
     manModel.scale.set(2, 2, 2); 
-    // Rotate to face the CDPR rig
     manModel.rotation.y = -Math.PI / 2;
     manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     scene.add(manModel);
@@ -276,8 +317,8 @@
     }
   }
 
-  // Initialize all pillars to height of 15
-  pillarsData.forEach((_, i) => updatePillarGeometry(i, 15.0, undefined, undefined));
+  // Initialize all pillars to height of 35
+  pillarsData.forEach((_, i) => updatePillarGeometry(i, 35.0, undefined, undefined));
 
   // --- GIZMO MODES & TRANSFORM CONTROLS ---
   let gizmoMode = 'translate';
@@ -323,7 +364,7 @@
     } 
     else if (tControls.object === pillarHandle && activePillarIndex > -1) {
       let h = pillarHandle.position.y - 0.5;
-      h = Math.max(3.0, Math.min(35.0, h)); // Increased pillar max height for scale
+      h = Math.max(3.0, Math.min(50.0, h)); // Increased pillar max height for drag limits
       let px = Math.max(-35, Math.min(35, pillarHandle.position.x));
       let pz = Math.max(-35, Math.min(35, pillarHandle.position.z));
       pillarHandle.position.set(px, h + 0.5, pz);
@@ -336,7 +377,8 @@
   let activePillarIndex = -1;
 
   window.addEventListener('pointerdown', (e) => {
-    if(e.target.closest('.ui-panel') || e.target.tagName === 'BUTTON') return;
+    // Ignore clicks on UI overlays or modal interactions
+    if(e.target.closest('.ui-panel') || e.target.closest('#menu-bar') || e.target.closest('#about-modal') || e.target.tagName === 'BUTTON') return;
     
     mouse.x = (e.clientX / innerWidth) * 2 - 1; 
     mouse.y = -(e.clientY / innerHeight) * 2 + 1;
