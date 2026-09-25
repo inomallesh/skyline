@@ -16,16 +16,18 @@
   html, body { height:100%; margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,sans-serif; overflow:hidden; }
   #canvas-wrap { position:absolute; inset:0; }
   
-  /* Top Menu Bar */
+  /* Transparent Top Menu Bar */
   #menu-bar {
     position: absolute; top: 0; left: 0; right: 0; height: 48px;
-    background: var(--panel); border-bottom: 1px solid var(--line);
     display: flex; align-items: center; padding: 0 20px; z-index: 100;
     justify-content: space-between;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    pointer-events: none; /* Allows clicking through the empty space */
   }
-  .brand { font-weight: bold; font-size: 16px; color: var(--accent); letter-spacing: 0.05em; }
-  .menu-btns { display: flex; gap: 10px; }
+  .brand { 
+    font-weight: bold; font-size: 16px; color: var(--accent); letter-spacing: 0.05em; 
+    pointer-events: auto; text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .menu-btns { display: flex; gap: 10px; pointer-events: auto; }
   
   /* About Modal */
   #about-modal {
@@ -44,7 +46,7 @@
   }
   
   #hud { 
-    top:64px; left:16px; width:260px; /* Shifted down to avoid menu bar */
+    top:64px; left:16px; width:260px;
     min-width:220px; max-width:400px; height:fit-content;
     resize:horizontal; overflow:hidden;
     display:flex; flex-direction:column;
@@ -78,7 +80,6 @@
 <body data-theme="light">
 <div id="canvas-wrap"></div>
 
-<!-- Top Menu Bar -->
 <div id="menu-bar">
   <div class="brand">SpiderCam Simulator</div>
   <div class="menu-btns">
@@ -86,14 +87,12 @@
   </div>
 </div>
 
-<!-- About Modal -->
 <div id="about-modal">
   <h2>About SpiderCam</h2>
   <p>This is a 3D Cable-Driven Parallel Robot (CDPR) simulation. You can freely adjust the environment's anchor pillars, maneuver the central end-effector (camera), and rotate the gimbal payload using real-time physics constraints.</p>
   <button class="close-btn" id="btn-close-about">Close</button>
 </div>
 
-<!-- Draggable HUD -->
 <div id="hud" class="ui-panel">
   <h1 id="drag-handle" title="Drag to move panel">End-Effector Pos</h1>
   <div class="row"><label>Pos X <b id="vx">0.00</b></label><input type="range" id="sx" min="-26.0" max="26.0" step="0.01" value="0"></div>
@@ -125,7 +124,7 @@
   scene.background = new THREE.Color(0xf0f2f5);
   
   const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 300);
-  camera.position.set(50, 40, 60); // Adjusted to see the taller rig
+  camera.position.set(60, 40, 70); 
   
   const renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(innerWidth, innerHeight);
@@ -146,6 +145,74 @@
   const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 64), new THREE.MeshStandardMaterial({color:0xe2e8f0, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
   let grid = new THREE.GridHelper(60, 60, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
+
+  // --- VIRTUAL DISPLAY (CANVAS TEXTURE) ---
+  const vCanvas = document.createElement('canvas');
+  vCanvas.width = 512;
+  vCanvas.height = 320;
+  const ctx = vCanvas.getContext('2d');
+  const vTexture = new THREE.CanvasTexture(vCanvas);
+  
+  // Creates a floating holographic monitor above the laptop
+  const virtualScreenGeo = new THREE.PlaneGeometry(6.4, 4.0);
+  const virtualScreenMat = new THREE.MeshBasicMaterial({ map: vTexture, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
+  const virtualScreen = new THREE.Mesh(virtualScreenGeo, virtualScreenMat);
+  virtualScreen.position.set(42.5, 6.5, 0); 
+  virtualScreen.rotation.y = Math.PI / 2; // Face towards the man (+X direction)
+  scene.add(virtualScreen);
+
+  // Draw the UI onto the canvas
+  function updateVirtualScreen(x, y, z) {
+    ctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
+    
+    // Panel Background
+    ctx.fillStyle = '#16191d';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 512, 320, 16);
+    ctx.fill();
+    ctx.strokeStyle = '#2a2f36';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Header
+    ctx.fillStyle = '#8b939c';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('END-EFFECTOR POS', 30, 40);
+    ctx.beginPath();
+    ctx.moveTo(0, 60); ctx.lineTo(512, 60);
+    ctx.stroke();
+
+    // Slider Drawer
+    function drawSlider(label, val, min, max, yOffset) {
+      ctx.fillStyle = '#8b939c';
+      ctx.font = '16px monospace';
+      ctx.fillText(label, 30, yOffset);
+      ctx.fillStyle = '#e6e9ec';
+      ctx.textAlign = 'right';
+      ctx.fillText(val.toFixed(2), 482, yOffset);
+      ctx.textAlign = 'left';
+
+      // Track
+      ctx.fillStyle = '#2a2f36';
+      ctx.beginPath();
+      ctx.roundRect(30, yOffset + 15, 452, 6, 3);
+      ctx.fill();
+
+      // Thumb
+      const pct = (val - min) / (max - min);
+      const thumbX = 30 + (pct * 452);
+      ctx.fillStyle = '#4fb0ff';
+      ctx.beginPath();
+      ctx.arc(thumbX, yOffset + 18, 10, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    drawSlider('Pos X', x, -26, 26, 110);
+    drawSlider('Pos Y', y, 0.5, 40, 185);
+    drawSlider('Pos Z', z, -26, 26, 260);
+
+    vTexture.needsUpdate = true;
+  }
 
   // --- UI DRAG LOGIC ---
   const hud = document.getElementById('hud');
@@ -233,7 +300,7 @@
   // --- END-EFFECTOR, GIMBAL, & MODEL LOADING ---
   const endEffector = new THREE.Group();
   scene.add(endEffector);
-  endEffector.position.set(0, 10.0, 0); // Start at height 10
+  endEffector.position.set(0, 10.0, 0); 
 
   const eeFrame = new THREE.Mesh(
     new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), 
@@ -261,9 +328,9 @@
   // Load Man working at desk Model
   loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
     const manModel = gltf.scene;
-    manModel.position.set(45, 0, 0); // Position set to 45
+    manModel.position.set(45, 0, 0); 
     manModel.scale.set(2, 2, 2); 
-    manModel.rotation.y = -Math.PI / 2;
+    manModel.rotation.y = -Math.PI / 2; // Facing the rig (-X direction)
     manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     scene.add(manModel);
   });
@@ -311,14 +378,18 @@
       cables[i].lookAt(pt); cables[i].rotateX(Math.PI/2);
     }
     
+    // Sync HTML UI and Virtual 3D UI
     if (sx && sy && sz) {
       sx.value = data.x; sy.value = data.y; sz.value = data.z;
       vx.textContent = data.x.toFixed(2); vy.textContent = data.y.toFixed(2); vz.textContent = data.z.toFixed(2);
+      
+      updateVirtualScreen(data.x, data.y, data.z);
     }
   }
 
   // Initialize all pillars to height of 35
   pillarsData.forEach((_, i) => updatePillarGeometry(i, 35.0, undefined, undefined));
+  updateVirtualScreen(0, 10, 0); // Initial draw
 
   // --- GIZMO MODES & TRANSFORM CONTROLS ---
   let gizmoMode = 'translate';
@@ -364,7 +435,7 @@
     } 
     else if (tControls.object === pillarHandle && activePillarIndex > -1) {
       let h = pillarHandle.position.y - 0.5;
-      h = Math.max(3.0, Math.min(50.0, h)); // Increased pillar max height for drag limits
+      h = Math.max(3.0, Math.min(50.0, h)); 
       let px = Math.max(-35, Math.min(35, pillarHandle.position.x));
       let pz = Math.max(-35, Math.min(35, pillarHandle.position.z));
       pillarHandle.position.set(px, h + 0.5, pz);
