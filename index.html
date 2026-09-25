@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>SpiderCam Simulator</title>
+<title>Advanced CDPR Simulator - Large Scale</title>
 <style>
   :root {
     --bg: #0d0f12; --panel: #16191d; --line: #2a2f36; 
@@ -22,7 +22,6 @@
     box-shadow:0 8px 24px rgba(0,0,0,.15);
   }
   
-  /* Fixed Draggable and Resizable HUD */
   #hud { 
     top:16px; left:16px; width:260px; 
     min-width:220px; max-width:400px; height:fit-content;
@@ -60,11 +59,9 @@
 
 <div id="hud" class="ui-panel">
   <h1 id="drag-handle" title="Drag to move panel">End-Effector Pos</h1>
-  
-  <!-- Position Sliders Only[cite: 11] -->
-  <div class="row"><label>Pos X <b id="vx">0.00</b></label><input type="range" id="sx" min="-10.0" max="10.0" step="0.01" value="0"></div>
-  <div class="row"><label>Pos Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="12.0" step="0.01" value="2.5"></div>
-  <div class="row"><label>Pos Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-10.0" max="10.0" step="0.01" value="0"></div>
+  <div class="row"><label>Pos X <b id="vx">0.00</b></label><input type="range" id="sx" min="-26.0" max="26.0" step="0.01" value="0"></div>
+  <div class="row"><label>Pos Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="20.0" step="0.01" value="2.5"></div>
+  <div class="row"><label>Pos Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-26.0" max="26.0" step="0.01" value="0"></div>
 </div>
 
 <div id="top-bar">
@@ -73,7 +70,6 @@
 </div>
 <div id="hint">Select mode · Click camera to attach gizmo · Click ground to deselect</div>
 
-<!-- Include Three.js and Loaders -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
@@ -86,8 +82,8 @@
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf0f2f5);
   
-  const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
-  camera.position.set(10, 8, 12);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 300);
+  camera.position.set(40, 30, 50); // Moved camera out to see the larger rig
   
   const renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(innerWidth, innerHeight);
@@ -96,16 +92,18 @@
   wrap.appendChild(renderer.domElement);
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 2, 0);
+  controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 5, 0);
 
   // --- LIGHTING ---
   const ambient = new THREE.AmbientLight(0x8899aa, 0.7); scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(5, 12, 4); key.castShadow = true; scene.add(key);
-  const fill = new THREE.DirectionalLight(0x4fb0ff, 0.4); fill.position.set(-8, 6, -8); scene.add(fill);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(15, 30, 15); key.castShadow = true; 
+  key.shadow.camera.top = 40; key.shadow.camera.bottom = -40; key.shadow.camera.left = -40; key.shadow.camera.right = 40;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x4fb0ff, 0.4); fill.position.set(-20, 15, -20); scene.add(fill);
   
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(25, 64), new THREE.MeshStandardMaterial({color:0xe2e8f0, roughness:0.95}));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 64), new THREE.MeshStandardMaterial({color:0xe2e8f0, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
-  let grid = new THREE.GridHelper(24, 48, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
+  let grid = new THREE.GridHelper(60, 60, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
 
   // --- UI DRAG LOGIC ---
   const hud = document.getElementById('hud');
@@ -126,7 +124,7 @@
   });
   window.addEventListener('mouseup', () => isDraggingHUD = false);
 
-  // --- UI SLIDER WIRING (Position Only) ---
+  // --- UI SLIDER WIRING ---
   const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
   const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
   
@@ -134,7 +132,8 @@
   [sx,sy,sz].forEach(el => el.addEventListener('input', onPosSlide));
 
   // --- MATERIALS & PARAMS ---
-  const HALF = 4.0; const CUBE_SIZE = 0.6;
+  const HALF = 25.0; // Scaled out to +/- 25
+  const CUBE_SIZE = 1.0; 
   const steelMat = new THREE.MeshStandardMaterial({color:0x555b63, roughness:0.35, metalness:0.85});
   const darkMat = new THREE.MeshStandardMaterial({color:0x2b2f34, roughness:0.5});
   const pulleyMat= new THREE.MeshStandardMaterial({color:0x8a8f96, roughness:0.25, metalness:0.9});
@@ -150,38 +149,38 @@
 
   corners.forEach((c, idx) => {
     const group = new THREE.Group(); group.position.set(c.x, 0, c.z); scene.add(group);
-    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.5,16), darkMat); motor.position.y = 0.37; group.add(motor);
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,1,12), steelMat);
-    pillar.position.y = 0.37; pillar.userData = { isPillar: true, index: idx }; group.add(pillar);
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,1.0,16), darkMat); motor.position.y = 0.5; group.add(motor);
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1,12), steelMat);
+    pillar.position.y = 0.5; pillar.userData = { isPillar: true, index: idx }; group.add(pillar);
     
     const bracketGroup = new THREE.Group(); group.add(bracketGroup);
-    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.18,0.3), darkMat); bracket.castShadow = true; bracketGroup.add(bracket);
-    const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.045,10,20), pulleyMat);
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.4,0.6), darkMat); bracket.castShadow = true; bracketGroup.add(bracket);
+    const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.3,0.1,10,20), pulleyMat);
     pulley.castShadow = true; bracketGroup.add(pulley);
-    const vCable = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1,6), cableMat); group.add(vCable);
+    const vCable = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1,6), cableMat); group.add(vCable);
 
     pillarsData.push({ group, pillar, bracketGroup, pulley, vCable, basex: c.x, basez: c.z });
     pulleyPoints.push(new THREE.Vector3());
   });
 
-  const pillarHandle = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), new THREE.MeshBasicMaterial({visible:false}));
+  const pillarHandle = new THREE.Mesh(new THREE.BoxGeometry(1.0,1.0,1.0), new THREE.MeshBasicMaterial({visible:false}));
   scene.add(pillarHandle);
 
   function updatePillarGeometry(idx, h, x, z) {
     const p = pillarsData[idx];
     if(h !== undefined) {
       p.pillar.scale.set(1, h, 1);
-      p.pillar.position.y = 0.37 + h/2;
-      p.bracketGroup.position.set(0, 0.37 + h, 0);
+      p.pillar.position.y = 0.5 + h/2;
+      p.bracketGroup.position.set(0, 0.5 + h, 0);
       p.vCable.scale.set(1, h, 1);
-      p.vCable.position.set(0, 0.37 + h/2, 0);
+      p.vCable.position.set(0, 0.5 + h/2, 0);
     }
     if(x !== undefined && z !== undefined) {
       p.basex = x; p.basez = z;
       p.group.position.set(x, 0, z);
     }
     p.pulley.rotation.y = Math.atan2(-p.basez, -p.basex) + Math.PI/2;
-    pulleyPoints[idx].set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
+    pulleyPoints[idx].set(p.basex, 0.5 + p.pillar.scale.y, p.basez);
     
     if (endEffector) {
       const clamped = clampPosition(endEffector.position.x, endEffector.position.y, endEffector.position.z);
@@ -192,45 +191,47 @@
   // --- END-EFFECTOR, GIMBAL, & MODEL LOADING ---
   const endEffector = new THREE.Group();
   scene.add(endEffector);
-  endEffector.position.set(0, 2.5, 0);
+  endEffector.position.set(0, 5.0, 0);
 
-  // Outer frame for visual reference
   const eeFrame = new THREE.Mesh(
     new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), 
     new THREE.MeshStandardMaterial({color:0xff8a4f, wireframe: true, transparent: true, opacity: 0.5})
   );
   endEffector.add(eeFrame);
 
-  // The Gimbal holds the camera and handles rotation inside the cable frame.
-  // YXZ order ensures Y (Pan) is relative to the environment and X (Tilt) remains local and independent.
   const gimbal = new THREE.Group();
   gimbal.rotation.order = "YXZ"; 
   endEffector.add(gimbal);
 
   const loader = new THREE.GLTFLoader();
+  
+  // Load Camera Model
   loader.load('panasonic_nv-m50_vhs_video_camera.glb', function(gltf) {
     const camModel = gltf.scene;
-    camModel.scale.set(1, 1, 1); 
-    
-    camModel.traverse((node) => {
-      if (node.isMesh) {
-        node.castShadow = true;
-        node.receiveShadow = true;
-      }
-    });
-    
+    camModel.scale.set(1.5, 1.5, 1.5); 
+    camModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     gimbal.add(camModel);
     eeFrame.visible = false; 
   }, undefined, function(error) {
-    console.warn("Camera GLB not found. Showing placeholder wireframe.", error);
     eeFrame.material.wireframe = false;
+  });
+
+  // Load Man working at desk Model (Placed outside the grid)
+  loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
+    const manModel = gltf.scene;
+    manModel.position.set(35, 0, 0); // Positioned safely outside the main active workspace
+    manModel.scale.set(2, 2, 2); 
+    // Rotate to face the CDPR rig
+    manModel.rotation.y = -Math.PI / 2;
+    manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
+    scene.add(manModel);
   });
   
   const baseCornerOffsets = [
     new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2), new THREE.Vector3(CUBE_SIZE/2, CUBE_SIZE/2, -CUBE_SIZE/2),
     new THREE.Vector3(-CUBE_SIZE/2, CUBE_SIZE/2, -CUBE_SIZE/2), new THREE.Vector3(-CUBE_SIZE/2, CUBE_SIZE/2, CUBE_SIZE/2)
   ];
-  const cables = corners.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), cableMat); scene.add(m); return m; });
+  const cables = corners.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 6), cableMat); scene.add(m); return m; });
 
   function clampPosition(x, y, z) {
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -275,7 +276,8 @@
     }
   }
 
-  pillarsData.forEach((_, i) => updatePillarGeometry(i, 6.0, undefined, undefined));
+  // Initialize all pillars to height of 15
+  pillarsData.forEach((_, i) => updatePillarGeometry(i, 15.0, undefined, undefined));
 
   // --- GIZMO MODES & TRANSFORM CONTROLS ---
   let gizmoMode = 'translate';
@@ -285,12 +287,10 @@
   scene.add(tControls);
   tControls.addEventListener('dragging-changed', (e) => controls.enabled = !e.value);
   
-  // Toggle Gizmo Mode Button
   btnMode.addEventListener('click', () => {
     gizmoMode = gizmoMode === 'translate' ? 'rotate' : 'translate';
     btnMode.innerText = `Gizmo: ${gizmoMode.charAt(0).toUpperCase() + gizmoMode.slice(1)}`;
     
-    // If attached to camera payload, hot-swap the gizmo
     if (tControls.object === endEffector && gizmoMode === 'rotate') {
         attachGizmoToCamera('rotate');
     } else if (tControls.object === gimbal && gizmoMode === 'translate') {
@@ -305,11 +305,8 @@
           tControls.showX = true; tControls.showY = true; tControls.showZ = true;
           tControls.attach(endEffector);
       } else {
-          // Set to Local space so Tilt (X) strictly follows Pan (Y) orientation
           tControls.setSpace('local'); 
-          tControls.showX = true; // Tilt allowed
-          tControls.showY = true; // Pan allowed
-          tControls.showZ = false; // ROLL DISABLED
+          tControls.showX = true; tControls.showY = true; tControls.showZ = false; 
           tControls.attach(gimbal);
       }
   }
@@ -321,20 +318,15 @@
       updateEndEffector(d.x, d.y, d.z); 
     } 
     else if (tControls.object === gimbal) {
-      // 1. Force Roll to 0 dynamically during drag
       gimbal.rotation.z = 0;
-      
-      // 2. Clamp Tilt (X-axis) strictly to the lower hemisphere (0 to 90 degrees downward)
-      // Depending on the model's native front, down is either 0 to PI/2, or 0 to -PI/2.
-      // Clamping between -Math.PI/2 and Math.PI/2 guarantees it cannot flip upwards into the top hemisphere.
       gimbal.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, gimbal.rotation.x));
     } 
     else if (tControls.object === pillarHandle && activePillarIndex > -1) {
-      let h = pillarHandle.position.y - 0.37;
-      h = Math.max(3.0, Math.min(12.0, h)); 
-      let px = Math.max(-10, Math.min(10, pillarHandle.position.x));
-      let pz = Math.max(-10, Math.min(10, pillarHandle.position.z));
-      pillarHandle.position.set(px, h + 0.37, pz);
+      let h = pillarHandle.position.y - 0.5;
+      h = Math.max(3.0, Math.min(35.0, h)); // Increased pillar max height for scale
+      let px = Math.max(-35, Math.min(35, pillarHandle.position.x));
+      let pz = Math.max(-35, Math.min(35, pillarHandle.position.z));
+      pillarHandle.position.set(px, h + 0.5, pz);
       updatePillarGeometry(activePillarIndex, h, px, pz);
     }
   });
@@ -344,7 +336,6 @@
   let activePillarIndex = -1;
 
   window.addEventListener('pointerdown', (e) => {
-    // Ignore clicks on UI overlays
     if(e.target.closest('.ui-panel') || e.target.tagName === 'BUTTON') return;
     
     mouse.x = (e.clientX / innerWidth) * 2 - 1; 
@@ -361,15 +352,13 @@
     } else if (hitPillar) {
       activePillarIndex = hitPillar.object.userData.index;
       const p = pillarsData[activePillarIndex];
-      pillarHandle.position.set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
+      pillarHandle.position.set(p.basex, 0.5 + p.pillar.scale.y, p.basez);
       
-      // Force pillar gizmo to Translate mode, regardless of UI toggle
       tControls.setMode('translate');
       tControls.setSpace('world');
       tControls.showX = true; tControls.showY = true; tControls.showZ = true;
       tControls.attach(pillarHandle);
     } else if (intersects.length > 0 && (intersects[0].object === ground || intersects[0].object.type === "GridHelper")) {
-      // Detach controls if clicking on empty ground
       tControls.detach();
       activePillarIndex = -1;
     }
@@ -395,7 +384,7 @@
       fill.intensity = 0.4;
     }
     scene.remove(grid);
-    grid = new THREE.GridHelper(24, 48, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
+    grid = new THREE.GridHelper(60, 60, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
     grid.position.y = 0.01; scene.add(grid);
   });
 
