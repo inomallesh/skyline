@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Advanced CDPR Simulator - Physics Mode</title>
+<title>Advanced CDPR Simulator</title>
 <style>
   :root {
     --bg: #0d0f12; --panel: #16191d; --line: #2a2f36; 
@@ -19,7 +19,7 @@
   .ui-panel {
     position:absolute; background:var(--panel); border:1px solid var(--line); 
     border-radius:10px; padding:14px 16px 18px; backdrop-filter:blur(6px); 
-    box-shadow:0 8px 24px rgba(0,0,0,.2);
+    box-shadow:0 8px 24px rgba(0,0,0,.15);
   }
   #hud { top:16px; left:16px; width:240px; }
   #pillar-hud { top:16px; right:16px; width:220px; display:none; }
@@ -40,28 +40,28 @@
   #hint { position:absolute; bottom:16px; left:16px; font-size:11px; color:var(--muted); background:var(--panel); border:1px solid var(--line); padding:6px 10px; border-radius:6px; pointer-events:none; }
 </style>
 </head>
-<body>
+<body data-theme="light">
 <div id="canvas-wrap"></div>
 
 <div id="hud" class="ui-panel">
   <h1>End-Effector Pos</h1>
   <div class="row"><label>X <b id="vx">0.00</b></label><input type="range" id="sx" min="-6.0" max="6.0" step="0.01" value="0"></div>
-  <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="10.0" step="0.01" value="2.5"></div>
+  <div class="row"><label>Y <b id="vy">2.50</b></label><input type="range" id="sy" min="0.5" max="12.0" step="0.01" value="2.5"></div>
   <div class="row"><label>Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-6.0" max="6.0" step="0.01" value="0"></div>
 </div>
 
 <div id="pillar-hud" class="ui-panel">
   <h1>Edit Pillar <span id="p-id"></span></h1>
-  <div class="row"><label>Height <b id="vh">5.00</b></label><input type="range" id="sh" min="3.0" max="12.0" step="0.1" value="5.0"></div>
+  <div class="row"><label>Height <b id="vh">6.00</b></label><input type="range" id="sh" min="3.0" max="12.0" step="0.1" value="6.0"></div>
   <div class="row"><label>Base X <b id="vpx">2.20</b></label><input type="range" id="spx" min="-8.0" max="8.0" step="0.1" value="2.2"></div>
   <div class="row"><label>Base Z <b id="vpz">2.20</b></label><input type="range" id="spz" min="-8.0" max="8.0" step="0.1" value="2.2"></div>
-  <button id="close-pillar" style="width:100%; margin-top:10px;">Close</button>
+  <button id="close-pillar" style="width:100%; margin-top:10px;">Close Gizmo</button>
 </div>
 
 <div id="top-bar">
-  <button id="btn-theme">Toggle Theme</button>
+  <button id="btn-theme">Toggle Dark Mode</button>
 </div>
-<div id="hint">Drag cube to move · Click pillars to edit</div>
+<div id="hint">Drag arrows to move elements · Click canvas to select</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -72,8 +72,7 @@
   // --- SCENE SETUP ---
   const wrap = document.getElementById('canvas-wrap');
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0d0f12);
-  scene.fog = new THREE.Fog(0x0d0f12, 12, 35);
+  scene.background = new THREE.Color(0xf0f2f5); // Default Light Theme
   
   const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
   camera.position.set(10, 8, 12);
@@ -87,12 +86,12 @@
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08; controls.target.set(0, 2, 0);
 
-  const ambient = new THREE.AmbientLight(0x8899aa, 0.5); scene.add(ambient);
-  const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(5, 12, 4); key.castShadow = true; scene.add(key);
+  const ambient = new THREE.AmbientLight(0x8899aa, 0.6); scene.add(ambient);
+  const key = new THREE.DirectionalLight(0xffffff, 0.8); key.position.set(5, 12, 4); key.castShadow = true; scene.add(key);
   
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(25, 64), new THREE.MeshStandardMaterial({color:0x14171b, roughness:0.95}));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(25, 64), new THREE.MeshStandardMaterial({color:0xe2e8f0, roughness:0.95}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
-  let grid = new THREE.GridHelper(24, 48, 0x2a2f36, 0x1f2328); grid.position.y = 0.01; scene.add(grid);
+  let grid = new THREE.GridHelper(24, 48, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
 
   // --- UI WIRING ---
   const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
@@ -115,15 +114,6 @@
   const pillarsData = [];
   const pulleyPoints = [];
 
-  // --- KINEMATIC TOP BOUNDARY MESH ---
-  // We use this invisible mesh to raycast the sloped ceiling
-  const ceilingGeo = new THREE.BufferGeometry();
-  const ceilingMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
-  const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
-  scene.add(ceilingMesh);
-  const downRaycaster = new THREE.Raycaster();
-  const downVector = new THREE.Vector3(0, -1, 0);
-  
   corners.forEach((c, idx) => {
     const group = new THREE.Group(); group.position.set(c.x, 0, c.z); scene.add(group);
     const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.5,16), darkMat); motor.position.y = 0.37; group.add(motor);
@@ -140,19 +130,9 @@
     pulleyPoints.push(new THREE.Vector3());
   });
 
-  function updateCeilingMesh() {
-    const v = new Float32Array([
-      pulleyPoints[0].x, pulleyPoints[0].y, pulleyPoints[0].z,
-      pulleyPoints[1].x, pulleyPoints[1].y, pulleyPoints[1].z,
-      pulleyPoints[2].x, pulleyPoints[2].y, pulleyPoints[2].z,
-      
-      pulleyPoints[0].x, pulleyPoints[0].y, pulleyPoints[0].z,
-      pulleyPoints[2].x, pulleyPoints[2].y, pulleyPoints[2].z,
-      pulleyPoints[3].x, pulleyPoints[3].y, pulleyPoints[3].z,
-    ]);
-    ceilingGeo.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    ceilingGeo.computeVertexNormals();
-  }
+  // A hidden control handle used to anchor the Transform Gizmo to the active pillar
+  const pillarHandle = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5), new THREE.MeshBasicMaterial({visible:false}));
+  scene.add(pillarHandle);
 
   function updatePillarGeometry(idx, h, x, z) {
     const p = pillarsData[idx];
@@ -171,7 +151,6 @@
     p.pulley.rotation.y = Math.atan2(-p.basez, -p.basex) + Math.PI/2;
     pulleyPoints[idx].set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
     
-    updateCeilingMesh();
     if (cube) {
       const clamped = clampPosition(cube.position.x, cube.position.y, cube.position.z);
       updateCube(clamped.x, clamped.y, clamped.z);
@@ -188,31 +167,25 @@
   ];
   const cables = corners.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), cableMat); scene.add(m); return m; });
 
-  function getCeilingDataAt(x, z) {
-    downRaycaster.set(new THREE.Vector3(x, 100, z), downVector);
-    const intersects = downRaycaster.intersectObject(ceilingMesh);
-    return intersects.length > 0 ? intersects[0] : null;
-  }
-
   function clampPosition(x, y, z) {
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    let lowestPulleyHeight = Infinity;
+    
     pulleyPoints.forEach(p => {
       if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
       if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+      if (p.y < lowestPulleyHeight) lowestPulleyHeight = p.y;
     });
     
     const margin = CUBE_SIZE; 
-    let clampedX = Math.max(minX + margin, Math.min(maxX - margin, x));
-    let clampedZ = Math.max(minZ + margin, Math.min(maxZ - margin, z));
     
-    const ceilingHit = getCeilingDataAt(clampedX, clampedZ);
-    let maxY = ceilingHit ? ceilingHit.point.y - (CUBE_SIZE/2) - 0.1 : 5.0; 
+    // Hard ceiling based on the absolutely lowest pulley connected to the cube
+    const maxY = lowestPulleyHeight - (CUBE_SIZE/2) - 0.1;
 
     return {
-      x: clampedX,
+      x: Math.max(minX + margin, Math.min(maxX - margin, x)),
       y: Math.max(CUBE_SIZE/2, Math.min(maxY, y)),
-      z: clampedZ,
-      normal: ceilingHit ? ceilingHit.face.normal : new THREE.Vector3(0, 1, 0)
+      z: Math.max(minZ + margin, Math.min(maxZ - margin, z))
     };
   }
 
@@ -220,14 +193,12 @@
     const data = clampPosition(rawX, rawY, rawZ);
     cube.position.set(data.x, data.y, data.z);
     
-    // Physics Approximation: Align cube UP with the tension gradient (ceiling normal)
-    const up = new THREE.Vector3(0, 1, 0);
-    cube.quaternion.setFromUnitVectors(up, data.normal);
+    // Cube remains completely flat
+    cube.rotation.set(0, 0, 0);
 
     const worldCorner = new THREE.Vector3();
     for (let i=0; i<4; i++) {
-      // Apply rotation to the local corner offsets
-      worldCorner.copy(baseCornerOffsets[i]).applyQuaternion(cube.quaternion).add(cube.position);
+      worldCorner.copy(baseCornerOffsets[i]).add(cube.position);
       const pt = pulleyPoints[i];
       cables[i].position.copy(pt).add(worldCorner).multiplyScalar(0.5);
       cables[i].scale.set(1, Math.max(pt.distanceTo(worldCorner), 0.001), 1);
@@ -240,12 +211,36 @@
     }
   }
 
-  pillarsData.forEach((_, i) => updatePillarGeometry(i, Math.random()*4 + 4, undefined, undefined));
+  // Initialize all pillars uniformly
+  pillarsData.forEach((_, i) => updatePillarGeometry(i, 6.0, undefined, undefined));
 
+  // --- TRANSFORM CONTROLS ---
   const tControls = new THREE.TransformControls(camera, renderer.domElement);
   tControls.attach(cube); scene.add(tControls);
   tControls.addEventListener('dragging-changed', (e) => controls.enabled = !e.value);
-  tControls.addEventListener('change', () => { updateCube(cube.position.x, cube.position.y, cube.position.z); });
+  
+  tControls.addEventListener('change', () => { 
+    if (tControls.object === cube) {
+      updateCube(cube.position.x, cube.position.y, cube.position.z); 
+    } else if (tControls.object === pillarHandle && activePillarIndex > -1) {
+      // Isolate Pillar Gizmo values
+      let h = pillarHandle.position.y - 0.37;
+      h = Math.max(3.0, Math.min(12.0, h)); // Restrict scale
+      
+      let x = pillarHandle.position.x;
+      let z = pillarHandle.position.z;
+      
+      // Force gizmo to respect min/max scale height limits
+      pillarHandle.position.y = h + 0.37;
+
+      updatePillarGeometry(activePillarIndex, h, x, z);
+      
+      // Sync UI sliders seamlessly
+      sh.value = h; vh.innerText = h.toFixed(2);
+      spx.value = x; vpx.innerText = x.toFixed(2);
+      spz.value = z; vpz.innerText = z.toFixed(2);
+    }
+  });
 
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
@@ -256,17 +251,31 @@
   const spz = document.getElementById('spz'), vpz = document.getElementById('vpz');
 
   window.addEventListener('pointerdown', (e) => {
-    if(e.target.closest('.ui-panel') || e.target.tagName === 'BUTTON') return;
-    mouse.x = (e.clientX / innerWidth) * 2 - 1; mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    // Avoid re-raycasting if clicking on HTML UI
+    if(e.target.tagName !== 'CANVAS') return;
+    
+    mouse.x = (e.clientX / innerWidth) * 2 - 1; 
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(scene.children, true);
     
-    const hit = intersects.find(x => x.object.userData && x.object.userData.isPillar);
-    if(hit) {
-      activePillarIndex = hit.object.userData.index;
+    const hitCube = intersects.find(x => x.object === cube);
+    const hitPillar = intersects.find(x => x.object.userData && x.object.userData.isPillar);
+
+    if (hitCube) {
+      tControls.attach(cube);
+      pillarHud.style.display = 'none';
+      activePillarIndex = -1;
+    } else if (hitPillar) {
+      activePillarIndex = hitPillar.object.userData.index;
+      const p = pillarsData[activePillarIndex];
+      
+      // Snap invisible handle to top of active pillar and attach gizmo
+      pillarHandle.position.set(p.basex, 0.37 + p.pillar.scale.y, p.basez);
+      tControls.attach(pillarHandle);
+      
       pillarHud.style.display = 'block';
       pId.innerText = (activePillarIndex + 1);
-      const p = pillarsData[activePillarIndex];
       sh.value = p.pillar.scale.y; vh.innerText = p.pillar.scale.y.toFixed(2);
       spx.value = p.basex; vpx.innerText = p.basex.toFixed(2);
       spz.value = p.basez; vpz.innerText = p.basez.toFixed(2);
@@ -278,17 +287,30 @@
       const h = parseFloat(sh.value), x = parseFloat(spx.value), z = parseFloat(spz.value);
       vh.innerText = h.toFixed(2); vpx.innerText = x.toFixed(2); vpz.innerText = z.toFixed(2);
       updatePillarGeometry(activePillarIndex, h, x, z);
+      
+      // Keep gizmo snapped when editing via sliders
+      if (tControls.object === pillarHandle) {
+        pillarHandle.position.set(x, h + 0.37, z);
+      }
     }
   };
+  
   [sh, spx, spz].forEach(el => el.addEventListener('input', onPillarUpdate));
-  document.getElementById('close-pillar').addEventListener('click', () => pillarHud.style.display = 'none');
+  document.getElementById('close-pillar').addEventListener('click', () => {
+    pillarHud.style.display = 'none';
+    tControls.detach();
+  });
 
-  let isDark = true;
-  document.getElementById('btn-theme').addEventListener('click', () => {
-    isDark = !isDark; document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  let isDark = false;
+  document.getElementById('btn-theme').addEventListener('click', (e) => {
+    isDark = !isDark; 
+    document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    e.target.innerText = isDark ? "Toggle Light Mode" : "Toggle Dark Mode";
+    
     const bgCol = isDark ? 0x0d0f12 : 0xf0f2f5;
-    scene.background.setHex(bgCol); scene.fog.color.setHex(bgCol);
+    scene.background.setHex(bgCol); 
     ground.material.color.setHex(isDark ? 0x14171b : 0xe2e8f0);
+    
     scene.remove(grid);
     grid = new THREE.GridHelper(24, 48, isDark ? 0x2a2f36 : 0xadb5bd, isDark ? 0x1f2328 : 0xdee2e6);
     grid.position.y = 0.01; scene.add(grid);
