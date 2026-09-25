@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Advanced CDPR Simulator - Large Scale</title>
+<title>SpiderCam</title>
 <style>
   :root {
     --bg: #0d0f12; --panel: #16191d; --line: #2a2f36; 
@@ -219,7 +219,7 @@
   // Load Man working at desk Model (Placed outside the grid)
   loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
     const manModel = gltf.scene;
-    manModel.position.set(35, 0, 0); // Positioned safely outside the main active workspace
+    manModel.position.set(40, 0, 0); // Positioned safely outside the main active workspace
     manModel.scale.set(2, 2, 2); 
     // Rotate to face the CDPR rig
     manModel.rotation.y = -Math.PI / 2;
