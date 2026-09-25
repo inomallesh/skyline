@@ -146,6 +146,14 @@
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
   let grid = new THREE.GridHelper(60, 60, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
 
+  // --- CENTER SUBJECT MODEL ---
+  const targetGeo = new THREE.TorusKnotGeometry(2, 0.6, 100, 16);
+  const targetMat = new THREE.MeshStandardMaterial({color: 0x4fb0ff, roughness: 0.2, metalness: 0.8});
+  const centerTarget = new THREE.Mesh(targetGeo, targetMat);
+  centerTarget.position.set(0, 4, 0);
+  centerTarget.castShadow = true;
+  scene.add(centerTarget);
+
   // --- VIRTUAL DISPLAY 1 (FLOATING HUD) ---
   const vCanvas = document.createElement('canvas');
   vCanvas.width = 512; vCanvas.height = 320;
@@ -180,17 +188,26 @@
     vTexture.needsUpdate = true;
   }
 
-  // --- VIRTUAL DISPLAY 2 (LIVE LAPTOP SCREEN) ---
+  // --- VIRTUAL DISPLAY 2 (PAYLOAD CAMERA OUTPUT) ---
+  const camRenderTarget = new THREE.WebGLRenderTarget(1024, 576); // 16:9 HD Ratio
+  const camScreenGeo = new THREE.PlaneGeometry(6.4, 3.6); 
+  const camScreenMat = new THREE.MeshBasicMaterial({ map: camRenderTarget.texture, side: THREE.DoubleSide });
+  const camScreen = new THREE.Mesh(camScreenGeo, camScreenMat);
+  camScreen.position.set(34, 15, -6.6); // Placed directly beside the virtual HUD screen
+  camScreen.rotation.y = Math.PI / 2;
+  scene.add(camScreen);
+
+  // --- VIRTUAL DISPLAY 3 (LIVE LAPTOP SCREEN) ---
   const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
-  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); // Size of typical model laptop screen
-  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture });
+  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); // User's precise dimensions
+  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
   const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
-    liveLaptopScreen.rotation.order = "YXZ"; 
-  // Position it exactly over the laptop keyboard in the GLB model
-  // (Man is at x:45, y:0, z:0, facing -X. Desk is around X: 44. Screen faces +X)
+  
+  // User's perfect coordinates & rotation fix
+  liveLaptopScreen.rotation.order = "YXZ"; 
   liveLaptopScreen.position.set(35.95, 10.5, 0.250); 
-  liveLaptopScreen.rotation.y = Math.PI / 2; // Face the man (+X)
-  liveLaptopScreen.rotation.x = -0.4;       // Perfectly tilt back along the new local axis
+  liveLaptopScreen.rotation.y = Math.PI / 2; 
+  liveLaptopScreen.rotation.x = -0.4;       
   scene.add(liveLaptopScreen);
 
   // --- UI DRAG LOGIC ---
@@ -291,7 +308,15 @@
   gimbal.rotation.order = "YXZ"; 
   endEffector.add(gimbal);
 
+  // Payload Viewport Camera (Acts as the physical lens of the payload)
+  const payloadCamera = new THREE.PerspectiveCamera(45, 16/9, 0.1, 1000);
+  payloadCamera.position.set(0, 0, 0); 
+  // By default, Three.js cameras look down the -Z axis. Adjust rotation here if your GLB model is facing backwards.
+  // payloadCamera.rotation.y = Math.PI; 
+  gimbal.add(payloadCamera);
+
   const loader = new THREE.GLTFLoader();
+  const mixers = []; // For storing GLB animations
   
   loader.load('panasonic_nv-m50_vhs_video_camera.glb', function(gltf) {
     const camModel = gltf.scene;
@@ -309,6 +334,14 @@
     manModel.scale.set(2, 2, 2); 
     manModel.rotation.y = -Math.PI / 2; 
     manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
+    
+    // Auto-play the first animation inside the GLB (e.g. typing)
+    if (gltf.animations && gltf.animations.length) {
+      const mixer = new THREE.AnimationMixer(manModel);
+      mixer.clipAction(gltf.animations[0]).play();
+      mixers.push(mixer);
+    }
+    
     scene.add(manModel);
   });
   
@@ -483,16 +516,36 @@
     liveRenderTarget.setSize(innerWidth / 2, innerHeight / 2);
   });
 
-  // --- RENDER LOOP WITH DROSTE EFFECT ---
+  // --- RENDER LOOP ---
+  const clock = new THREE.Clock();
+
   function animate() { 
     requestAnimationFrame(animate); 
+    
+    const delta = clock.getDelta();
+    mixers.forEach(mixer => mixer.update(delta));
+    
+    // Spin the center target
+    centerTarget.rotation.x += 0.5 * delta;
+    centerTarget.rotation.y += 1.0 * delta;
+
     controls.update(); 
 
+    // Hide recursive screens to prevent render feedback loops
     liveLaptopScreen.visible = false; 
+    camScreen.visible = false;
+
+    // 1. Render Payload Camera View (to Secondary Floating Screen)
+    renderer.setRenderTarget(camRenderTarget);
+    renderer.render(scene, payloadCamera);
+
+    // 2. Render Main Camera View (to Laptop Screen)
     renderer.setRenderTarget(liveRenderTarget);
     renderer.render(scene, camera);
 
+    // 3. Render Final Scene to standard browser canvas
     liveLaptopScreen.visible = true; 
+    camScreen.visible = true;
     renderer.setRenderTarget(null);
     renderer.render(scene, camera);
   }
