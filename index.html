@@ -155,7 +155,7 @@
   const virtualScreenGeo = new THREE.PlaneGeometry(6.4, 4.0);
   const virtualScreenMat = new THREE.MeshBasicMaterial({ map: vTexture, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
   const virtualScreen = new THREE.Mesh(virtualScreenGeo, virtualScreenMat);
-  virtualScreen.position.set(34, 15, 0); // Position updated as requested
+  virtualScreen.position.set(34, 15, 0); 
   virtualScreen.rotation.y = Math.PI / 2;
   scene.add(virtualScreen);
 
@@ -181,17 +181,17 @@
   }
 
   // --- VIRTUAL DISPLAY 2 (LIVE LAPTOP SCREEN) ---
-  // Create a RenderTarget to capture the live scene
   const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
-  const laptopScreenGeo = new THREE.PlaneGeometry(1.5, 1.0); // Size of typical model laptop screen
-  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture });
+  
+  // TWEAKED: Increased size slightly, set to DoubleSide, and pushed coordinates out so it doesn't clip into the model
+  const laptopScreenGeo = new THREE.PlaneGeometry(1.85, 1.15); 
+  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
   const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
   
-  // Position it exactly over the laptop keyboard in the GLB model
-  // (Man is at x:45, y:0, z:0, facing -X. Desk is around X: 44. Screen faces +X)
-  liveLaptopScreen.position.set(43.85, 4.4, 0); 
-  liveLaptopScreen.rotation.y = Math.PI / 2; // Face the man
-  liveLaptopScreen.rotation.x = -0.15; // Tilt slightly back like a real laptop
+  // TWEAKED Coordinates based on the visual output
+  liveLaptopScreen.position.set(43.7, 3.85, 0.1); 
+  liveLaptopScreen.rotation.y = Math.PI / 2; // Facing +X
+  liveLaptopScreen.rotation.x = -0.22; // Tilt back
   scene.add(liveLaptopScreen);
 
   // --- UI DRAG LOGIC ---
@@ -489,13 +489,10 @@
     requestAnimationFrame(animate); 
     controls.update(); 
 
-    // 1. Render scene to the Live Laptop Screen texture
-    // Hide the screen momentarily to prevent a recursive feedback loop error
     liveLaptopScreen.visible = false; 
     renderer.setRenderTarget(liveRenderTarget);
     renderer.render(scene, camera);
 
-    // 2. Render scene normally to the Main Monitor
     liveLaptopScreen.visible = true; 
     renderer.setRenderTarget(null);
     renderer.render(scene, camera);
