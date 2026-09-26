@@ -261,14 +261,14 @@
 
   // --- VIRTUAL DISPLAY 3 (LIVE LAPTOP SCREEN) ---
   const liveRenderTarget = new THREE.WebGLRenderTarget(Math.floor(innerWidth / 2), Math.floor(innerHeight / 2));
-  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.8); 
+  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 4); 
   const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
   const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
   
   liveLaptopScreen.rotation.order = "YXZ"; 
-  liveLaptopScreen.position.set(35.89, 10.1, 0.250); 
+  liveLaptopScreen.position.set(35.89, 10.0, 0.250); 
   liveLaptopScreen.rotation.y = Math.PI / 2; 
-  liveLaptopScreen.rotation.x = -0.378;       
+  liveLaptopScreen.rotation.x = -0.38;       
   scene.add(liveLaptopScreen);
 
   // --- UI DRAG LOGIC ---
