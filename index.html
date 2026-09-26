@@ -159,7 +159,7 @@
   const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
 
   function pickNewEETarget() {
-    eeTargetPos.set((Math.random() - 0.5) * 40, Math.random() * 20 + 5, (Math.random() - 0.5) * 40);
+    eeTargetPos.set((Math.random() - 0.5) * 60, Math.random() * 40 + 5, (Math.random() - 0.5) * 60);
   }
   pickNewEETarget();
 
@@ -574,7 +574,7 @@
       const dist = currentPos.distanceTo(walleTargetPos);
       
       if (dist < 0.1) {
-        walleTargetPos.set((Math.random() - 0.5) * 10, 0, (Math.random() - 0.5) * 10);
+        walleTargetPos.set((Math.random() - 0.5) * 30, 0, (Math.random() - 0.5) * 30);
       } else {
         const dir = new THREE.Vector3().subVectors(walleTargetPos, currentPos).normalize();
         const step = 2.0 * delta; 
