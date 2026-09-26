@@ -45,28 +45,41 @@
     box-shadow:0 8px 24px rgba(0,0,0,.15);
   }
   
+  /* Draggable HUD */
   #hud { 
-    top:64px; left:16px; width:260px;
-    min-width:220px; max-width:400px; height:fit-content;
+    top:64px; left:16px; width:280px;
+    min-width:240px; max-width:400px; height:fit-content;
     resize:horizontal; overflow:hidden;
     display:flex; flex-direction:column;
   }
   #hud h1 { 
+    display: flex; justify-content: space-between; align-items: center;
     font-size:12px; letter-spacing:.08em; text-transform:uppercase; 
     color:var(--muted); font-weight:600;
-    margin:-14px -16px 12px; padding:14px 16px 12px;
+    margin:-14px -16px 16px; padding:12px 16px;
     border-bottom:1px solid var(--line); 
     cursor:grab; user-select:none;
     background:rgba(0,0,0,0.02);
   }
   #hud h1:active { cursor:grabbing; }
+
+  .auto-toggle {
+    font-size: 11px; display: flex; align-items: center; gap: 6px; 
+    cursor: pointer; color: var(--text); text-transform: none; 
+    font-weight: 600; letter-spacing: normal;
+  }
+  .auto-toggle input { margin: 0; cursor: pointer; accent-color: var(--accent); width: 14px; height: 14px; }
   
-  .row { margin-bottom:14px; }
-  .row:last-child { margin-bottom:0; }
-  .row label { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:6px; }
-  .row label b { color:var(--text); font-family:monospace; font-weight:500; }
+  /* Inline Sliders Layout */
+  .row.align-center {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px;
+  }
+  .row.align-center:last-child { margin-bottom: 0; }
+  .row.align-center label { margin: 0; font-size: 14px; font-weight: bold; color: var(--muted); width: 14px; text-align: left; }
+  .row.align-center input[type=range] { flex: 1; margin: 0; }
+  .row.align-center b { margin: 0; font-size: 13px; color: var(--text); font-family: monospace; width: 50px; text-align: right; }
   
-  input[type=range] { -webkit-appearance:none; width:100%; height:4px; border-radius:2px; background:var(--line); outline:none; }
+  input[type=range] { -webkit-appearance:none; height:4px; border-radius:2px; background:var(--line); outline:none; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--accent); cursor:pointer; }
   
   #top-bar { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:10px; }
@@ -89,15 +102,18 @@
 
 <div id="about-modal">
   <h2>About SpiderCam</h2>
-  <p>This is a 3D Cable-Driven Parallel Robot (CDPR) simulation. You can freely adjust the environment's anchor pillars, maneuver the central end-effector (camera), and rotate the gimbal payload using real-time physics constraints.</p>
+  <p>This is a 3D Cable-Driven Parallel Robot (CDPR) simulation. You can freely adjust the environment's anchor pillars, maneuver the central end-effector (camera), and watch it automatically track targets using real-time physics constraints.</p>
   <button class="close-btn" id="btn-close-about">Close</button>
 </div>
 
 <div id="hud" class="ui-panel">
-  <h1 id="drag-handle" title="Drag to move panel">End-Effector Pos</h1>
-  <div class="row"><label>Pos X <b id="vx">0.00</b></label><input type="range" id="sx" min="-26.0" max="26.0" step="0.01" value="0"></div>
-  <div class="row"><label>Pos Y <b id="vy">10.00</b></label><input type="range" id="sy" min="0.5" max="40.0" step="0.01" value="10.0"></div>
-  <div class="row"><label>Pos Z <b id="vz">0.00</b></label><input type="range" id="sz" min="-26.0" max="26.0" step="0.01" value="0"></div>
+  <h1 id="drag-handle" title="Drag to move panel">
+    End-Effector
+    <label class="auto-toggle"><input type="checkbox" id="auto-roam" checked> Auto</label>
+  </h1>
+  <div class="row align-center"><label>X</label><input type="range" id="sx" min="-26.0" max="26.0" step="0.01" value="0"><b id="vx">0.00</b></div>
+  <div class="row align-center"><label>Y</label><input type="range" id="sy" min="0.5" max="40.0" step="0.01" value="10.0"><b id="vy">10.00</b></div>
+  <div class="row align-center"><label>Z</label><input type="range" id="sz" min="-26.0" max="26.0" step="0.01" value="-20.0"><b id="vz">-20.00</b></div>
 </div>
 
 <div id="top-bar">
@@ -146,80 +162,6 @@
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
   let grid = new THREE.GridHelper(60, 60, 0xadb5bd, 0xdee2e6); grid.position.y = 0.01; scene.add(grid);
 
-  // --- VIRTUAL DISPLAY 1 (FLOATING HUD) ---
-  const vCanvas = document.createElement('canvas');
-  vCanvas.width = 1024; vCanvas.height = 640;
-  const ctx = vCanvas.getContext('2d');
-  const vTexture = new THREE.CanvasTexture(vCanvas);
-  
-  const virtualScreenGeo = new THREE.PlaneGeometry(6.4, 4.0);
-  const virtualScreenMat = new THREE.MeshBasicMaterial({ map: vTexture, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
-  const virtualScreen = new THREE.Mesh(virtualScreenGeo, virtualScreenMat);
-  virtualScreen.position.set(34, 15, 0); 
-  virtualScreen.rotation.y = Math.PI / 2;
-  scene.add(virtualScreen);
-
-  function updateVirtualScreen(x, y, z) {
-    ctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
-    // Scale drawings up by 2 to map perfectly to the 1024x640 canvas (retina sharpness)
-    ctx.save(); ctx.scale(2, 2);
-    
-    ctx.fillStyle = '#16191d'; ctx.beginPath(); ctx.roundRect(0, 0, 512, 320, 16); ctx.fill();
-    ctx.strokeStyle = '#2a2f36'; ctx.lineWidth = 2; ctx.stroke();
-
-    ctx.fillStyle = '#8b939c'; ctx.font = 'bold 20px monospace'; ctx.fillText('END-EFFECTOR POS', 30, 40);
-    ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(512, 60); ctx.stroke();
-
-    function drawSlider(label, val, min, max, yOffset) {
-      ctx.fillStyle = '#8b939c'; ctx.font = '16px monospace'; ctx.fillText(label, 30, yOffset);
-      ctx.fillStyle = '#e6e9ec'; ctx.textAlign = 'right'; ctx.fillText(val.toFixed(2), 482, yOffset); ctx.textAlign = 'left';
-      ctx.fillStyle = '#2a2f36'; ctx.beginPath(); ctx.roundRect(30, yOffset + 15, 452, 6, 3); ctx.fill();
-      const pct = (val - min) / (max - min);
-      ctx.fillStyle = '#4fb0ff'; ctx.beginPath(); ctx.arc(30 + (pct * 452), yOffset + 18, 10, 0, Math.PI*2); ctx.fill();
-    }
-    drawSlider('Pos X', x, -26, 26, 110);
-    drawSlider('Pos Y', y, 0.5, 40, 185);
-    drawSlider('Pos Z', z, -26, 26, 260);
-    ctx.restore();
-    
-    vTexture.needsUpdate = true;
-  }
-
-  // --- VIRTUAL DISPLAY 2 (PAYLOAD CAMERA OUTPUT) ---
-  // Generate an Alpha Mask Canvas to give the secondary screen beautiful rounded corners
-  const alphaCanvas = document.createElement('canvas');
-  alphaCanvas.width = 1024; alphaCanvas.height = 640; 
-  const actx = alphaCanvas.getContext('2d');
-  actx.fillStyle = '#000'; actx.fillRect(0, 0, 1024, 640);
-  actx.fillStyle = '#fff'; actx.beginPath(); actx.roundRect(0, 0, 1024, 640, 32); actx.fill();
-  const alphaTexture = new THREE.CanvasTexture(alphaCanvas);
-
-  const camRenderTarget = new THREE.WebGLRenderTarget(1024, 640);
-  const camScreenGeo = new THREE.PlaneGeometry(6.4, 4.0); // Exact same size as the HUD display
-  const camScreenMat = new THREE.MeshBasicMaterial({ 
-      map: camRenderTarget.texture, 
-      alphaMap: alphaTexture, // Applies the rounded corner mask
-      transparent: true,
-      side: THREE.DoubleSide 
-  });
-  
-  const camScreen = new THREE.Mesh(camScreenGeo, camScreenMat);
-  camScreen.position.set(35, 15, -6.6); // Placed directly beside the virtual HUD screen
-  camScreen.rotation.y = (Math.PI / 2) - 0.25; // Rotates slightly inward towards the person
-  scene.add(camScreen);
-
-  // --- VIRTUAL DISPLAY 3 (LIVE LAPTOP SCREEN) ---
-  const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
-  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); 
-  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
-  const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
-  
-  liveLaptopScreen.rotation.order = "YXZ"; 
-  liveLaptopScreen.position.set(35.95, 10.5, 0.250); 
-  liveLaptopScreen.rotation.y = Math.PI / 2; 
-  liveLaptopScreen.rotation.x = -0.4;       
-  scene.add(liveLaptopScreen);
-
   // --- UI DRAG LOGIC ---
   const hud = document.getElementById('hud');
   const dragHandle = document.getElementById('drag-handle');
@@ -239,12 +181,125 @@
   });
   window.addEventListener('mouseup', () => isDraggingHUD = false);
 
-  // --- UI SLIDER WIRING ---
+  // --- UI SLIDER WIRING & AUTO ROAM ---
+  let isAutoRoam = true; // Default ON
+  const eeTargetPos = new THREE.Vector3();
+  const autoRoamCb = document.getElementById('auto-roam');
   const sx = document.getElementById('sx'), sy = document.getElementById('sy'), sz = document.getElementById('sz');
   const vx = document.getElementById('vx'), vy = document.getElementById('vy'), vz = document.getElementById('vz');
-  
-  const onPosSlide = () => updateEndEffector(parseFloat(sx.value), parseFloat(sy.value), parseFloat(sz.value));
+
+  function pickNewEETarget() {
+    eeTargetPos.set((Math.random() - 0.5) * 40, Math.random() * 20 + 5, (Math.random() - 0.5) * 40);
+  }
+  pickNewEETarget(); // Trigger first path immediately
+
+  function setAutoRoam(state) {
+    isAutoRoam = state;
+    autoRoamCb.checked = state;
+    if (isAutoRoam) pickNewEETarget();
+    if (sx && sy && sz) updateVirtualScreen(parseFloat(sx.value), parseFloat(sy.value), parseFloat(sz.value));
+  }
+
+  autoRoamCb.addEventListener('change', (e) => setAutoRoam(e.target.checked));
+
+  const onPosSlide = () => {
+    if (isAutoRoam) setAutoRoam(false); // Snap off auto-roam if user intervenes
+    updateEndEffector(parseFloat(sx.value), parseFloat(sy.value), parseFloat(sz.value));
+  };
   [sx,sy,sz].forEach(el => el.addEventListener('input', onPosSlide));
+
+  // --- VIRTUAL DISPLAY 1 (COMPACT FLOATING HUD) ---
+  const vCanvas = document.createElement('canvas');
+  vCanvas.width = 1024; vCanvas.height = 440; // Shorter aspect ratio to fit the inline UI
+  const ctx = vCanvas.getContext('2d');
+  const vTexture = new THREE.CanvasTexture(vCanvas);
+  
+  const virtualScreenGeo = new THREE.PlaneGeometry(6.4, 3.6); // Shorter physical panel
+  const virtualScreenMat = new THREE.MeshBasicMaterial({ map: vTexture, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
+  const virtualScreen = new THREE.Mesh(virtualScreenGeo, virtualScreenMat);
+  virtualScreen.position.set(34, 15, 0); 
+  virtualScreen.rotation.y = Math.PI / 2;
+  scene.add(virtualScreen);
+
+  function updateVirtualScreen(x, y, z) {
+    ctx.clearRect(0, 0, vCanvas.width, vCanvas.height);
+    ctx.save(); ctx.scale(2, 2);
+    
+    // Background
+    ctx.fillStyle = '#16191d'; ctx.beginPath(); ctx.roundRect(0, 0, 512, 220, 16); ctx.fill();
+    ctx.strokeStyle = '#2a2f36'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Header Text
+    ctx.fillStyle = '#8b939c'; ctx.font = 'bold 16px sans-serif'; ctx.fillText('END-EFFECTOR', 20, 35);
+    
+    // Header Auto Toggle (Visual representation)
+    ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#e6e9ec'; ctx.fillText('Auto', 450, 35);
+    ctx.beginPath(); ctx.roundRect(430, 23, 14, 14, 3);
+    ctx.strokeStyle = '#8b939c'; ctx.stroke();
+    if (isAutoRoam) {
+        ctx.fillStyle = '#4fb0ff'; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(437, 30, 3, 0, Math.PI*2); ctx.fill(); // Checkmark dot
+    }
+
+    ctx.beginPath(); ctx.moveTo(0, 55); ctx.lineTo(512, 55); ctx.strokeStyle = '#2a2f36'; ctx.stroke();
+
+    // Inline Slider Drawer
+    function drawSlider(label, val, min, max, yOffset) {
+      ctx.fillStyle = '#8b939c'; ctx.font = 'bold 16px sans-serif'; ctx.fillText(label, 20, yOffset);
+      
+      // Track
+      ctx.fillStyle = '#2a2f36'; ctx.beginPath(); ctx.roundRect(50, yOffset - 6, 380, 6, 3); ctx.fill();
+      
+      // Thumb
+      const pct = (val - min) / (max - min);
+      ctx.fillStyle = '#4fb0ff'; ctx.beginPath(); ctx.arc(50 + (pct * 380), yOffset - 3, 10, 0, Math.PI*2); ctx.fill();
+      
+      // Value
+      ctx.fillStyle = '#e6e9ec'; ctx.font = '16px monospace'; ctx.textAlign = 'right'; ctx.fillText(val.toFixed(2), 492, yOffset); ctx.textAlign = 'left';
+    }
+    
+    drawSlider('X', x, -26, 26, 100);
+    drawSlider('Y', y, 0.5, 40, 145);
+    drawSlider('Z', z, -26, 26, 190);
+
+    ctx.restore();
+    vTexture.needsUpdate = true;
+  }
+
+  // --- VIRTUAL DISPLAY 2 (PAYLOAD CAMERA OUTPUT) ---
+  const alphaCanvas = document.createElement('canvas');
+  alphaCanvas.width = 1024; alphaCanvas.height = 576; // True 16:9 standard for camera output
+  const actx = alphaCanvas.getContext('2d');
+  actx.fillStyle = '#000'; actx.fillRect(0, 0, 1024, 576);
+  actx.fillStyle = '#fff'; actx.beginPath(); actx.roundRect(0, 0, 1024, 576, 32); actx.fill();
+  const alphaTexture = new THREE.CanvasTexture(alphaCanvas);
+
+  const camRenderTarget = new THREE.WebGLRenderTarget(1024, 576);
+  const camScreenGeo = new THREE.PlaneGeometry(6.4, 3.6); // True 16:9 matching
+  const camScreenMat = new THREE.MeshBasicMaterial({ 
+      map: camRenderTarget.texture, 
+      alphaMap: alphaTexture,
+      transparent: true,
+      side: THREE.DoubleSide 
+  });
+  
+  const camScreen = new THREE.Mesh(camScreenGeo, camScreenMat);
+  camScreen.position.set(35, 15, -6.8); 
+  camScreen.rotation.y = (Math.PI / 2) - 0.25; 
+  scene.add(camScreen);
+
+  // --- VIRTUAL DISPLAY 3 (LIVE LAPTOP SCREEN) ---
+  const liveRenderTarget = new THREE.WebGLRenderTarget(innerWidth / 2, innerHeight / 2);
+  const laptopScreenGeo = new THREE.PlaneGeometry(5.65, 3.25); 
+  const laptopScreenMat = new THREE.MeshBasicMaterial({ map: liveRenderTarget.texture, side: THREE.DoubleSide });
+  const liveLaptopScreen = new THREE.Mesh(laptopScreenGeo, laptopScreenMat);
+  
+  liveLaptopScreen.rotation.order = "YXZ"; 
+  liveLaptopScreen.position.set(35.95, 10.5, 0.250); 
+  liveLaptopScreen.rotation.y = Math.PI / 2; 
+  liveLaptopScreen.rotation.x = -0.4;       
+  scene.add(liveLaptopScreen);
+
 
   // --- MATERIALS & PARAMS ---
   const HALF = 25.0; 
@@ -306,7 +361,7 @@
   // --- END-EFFECTOR, GIMBAL, & MODEL LOADING ---
   const endEffector = new THREE.Group();
   scene.add(endEffector);
-  endEffector.position.set(0, 10.0, 0); 
+  endEffector.position.set(0, 10.0, -20.0); 
 
   const eeFrame = new THREE.Mesh(
     new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), 
@@ -318,7 +373,6 @@
   gimbal.rotation.order = "YXZ"; 
   endEffector.add(gimbal);
 
-  // User's precise payload camera setup
   const payloadCamera = new THREE.PerspectiveCamera(45, 16/9, 0.1, 1000);
   payloadCamera.position.set(0, 0, 5); 
   payloadCamera.rotation.y = Math.PI; 
@@ -327,7 +381,6 @@
   const loader = new THREE.GLTFLoader();
   const mixers = []; 
   
-  // Load Camera Model
   loader.load('panasonic_nv-m50_vhs_video_camera.glb', function(gltf) {
     const camModel = gltf.scene;
     camModel.scale.set(1.5, 1.5, 1.5); 
@@ -338,7 +391,6 @@
     eeFrame.material.wireframe = false;
   });
 
-  // Load Desk Model
   loader.load('low_poly_man_working_at_a_table_with_a_laptop.glb', function(gltf) {
     const manModel = gltf.scene;
     manModel.position.set(45, 0, 0); 
@@ -346,7 +398,6 @@
     manModel.rotation.y = -Math.PI / 2; 
     manModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     
-    // Play desk worker animation
     if (gltf.animations && gltf.animations.length) {
       const mixer = new THREE.AnimationMixer(manModel);
       mixer.clipAction(gltf.animations[0]).play();
@@ -355,24 +406,20 @@
     scene.add(manModel);
   });
 
-  // Load Wall-E Model
   let walleModel = null;
-  const walleTargetPos = new THREE.Vector3();
   
   loader.load('wall-e-animated.glb', function(gltf) {
     walleModel = gltf.scene;
     walleModel.scale.set(1.5, 1.5, 1.5); 
     walleModel.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }});
     
-    // Play Wall-E animation
     if (gltf.animations && gltf.animations.length) {
       const mixer = new THREE.AnimationMixer(walleModel);
       mixer.clipAction(gltf.animations[0]).play();
       mixers.push(mixer);
     }
     
-    // Initial random target inside a 10x10 area
-    walleTargetPos.set((Math.random() - 0.5) * 10, 0, (Math.random() - 0.5) * 10);
+    walleModel.position.copy(eeTargetPos); // Align initial position
     scene.add(walleModel);
   });
   
@@ -429,7 +476,7 @@
 
   // Initialize
   pillarsData.forEach((_, i) => updatePillarGeometry(i, 35.0, undefined, undefined));
-  updateVirtualScreen(0, 10, 0); 
+  updateVirtualScreen(0, 10, -20); 
 
   // --- GIZMO MODES & TRANSFORM CONTROLS ---
   let gizmoMode = 'translate';
@@ -437,41 +484,24 @@
   
   const tControls = new THREE.TransformControls(camera, renderer.domElement);
   scene.add(tControls);
-  tControls.addEventListener('dragging-changed', (e) => controls.enabled = !e.value);
+  
+  tControls.addEventListener('dragging-changed', (e) => {
+      controls.enabled = !e.value;
+      if (e.value && isAutoRoam) setAutoRoam(false); // Snap off roam if user grabs gizmo
+  });
   
   btnMode.addEventListener('click', () => {
-    gizmoMode = gizmoMode === 'translate' ? 'rotate' : 'translate';
-    btnMode.innerText = `Gizmo: ${gizmoMode.charAt(0).toUpperCase() + gizmoMode.slice(1)}`;
-    
-    if (tControls.object === endEffector && gizmoMode === 'rotate') {
-        attachGizmoToCamera('rotate');
-    } else if (tControls.object === gimbal && gizmoMode === 'translate') {
-        attachGizmoToCamera('translate');
-    }
+    tControls.setMode('translate');
+    tControls.setSpace('world');
+    tControls.showX = true; tControls.showY = true; tControls.showZ = true;
+    if (tControls.object === endEffector) tControls.attach(endEffector);
   });
-
-  function attachGizmoToCamera(mode) {
-      tControls.setMode(mode);
-      if (mode === 'translate') {
-          tControls.setSpace('world');
-          tControls.showX = true; tControls.showY = true; tControls.showZ = true;
-          tControls.attach(endEffector);
-      } else {
-          tControls.setSpace('local'); 
-          tControls.showX = true; tControls.showY = true; tControls.showZ = false; 
-          tControls.attach(gimbal);
-      }
-  }
 
   tControls.addEventListener('change', () => { 
     if (tControls.object === endEffector) {
       const d = clampPosition(endEffector.position.x, endEffector.position.y, endEffector.position.z);
       endEffector.position.set(d.x, d.y, d.z); 
       updateEndEffector(d.x, d.y, d.z); 
-    } 
-    else if (tControls.object === gimbal) {
-      gimbal.rotation.z = 0;
-      gimbal.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, gimbal.rotation.x));
     } 
     else if (tControls.object === pillarHandle && activePillarIndex > -1) {
       let h = pillarHandle.position.y - 0.5;
@@ -500,7 +530,9 @@
 
     if (hitEE) {
       activePillarIndex = -1;
-      attachGizmoToCamera(gizmoMode);
+      tControls.setMode('translate');
+      tControls.setSpace('world');
+      tControls.attach(endEffector);
     } else if (hitPillar) {
       activePillarIndex = hitPillar.object.userData.index;
       const p = pillarsData[activePillarIndex];
@@ -556,13 +588,12 @@
     const delta = clock.getDelta();
     mixers.forEach(mixer => mixer.update(delta));
     
-    // Smooth AI Movement for Wall-E
     if (walleModel) {
       const currentPos = walleModel.position;
       const dist = currentPos.distanceTo(walleTargetPos);
       
       if (dist < 0.1) {
-        walleTargetPos.set((Math.random() - 0.5) * 35, 0, (Math.random() - 0.5) * 35);
+        walleTargetPos.set((Math.random() - 0.5) * 10, 0, (Math.random() - 0.5) * 10);
       } else {
         const dir = new THREE.Vector3().subVectors(walleTargetPos, currentPos).normalize();
         const step = 2.0 * delta; 
@@ -573,17 +604,39 @@
           walleModel.position.add(dir.multiplyScalar(step));
         }
         
-        // Slerp physical rotation to face the target path
         const dummy = new THREE.Object3D();
         dummy.position.copy(currentPos);
         dummy.lookAt(walleTargetPos);
         walleModel.quaternion.slerp(dummy.quaternion, 5.0 * delta);
       }
+
+      if (gimbal) {
+        const targetFocus = walleModel.position.clone();
+        targetFocus.y += 1.0; 
+        gimbal.lookAt(targetFocus);
+      }
+    }
+    
+    if (isAutoRoam) {
+      const currentPos = endEffector.position;
+      const dist = currentPos.distanceTo(eeTargetPos);
+      if (dist < 0.5) {
+        pickNewEETarget();
+      } else {
+        const dir = new THREE.Vector3().subVectors(eeTargetPos, currentPos).normalize();
+        const step = 8.0 * delta; 
+        let nextPos = currentPos.clone();
+        if (step >= dist) {
+          nextPos.copy(eeTargetPos);
+        } else {
+          nextPos.add(dir.multiplyScalar(step));
+        }
+        updateEndEffector(nextPos.x, nextPos.y, nextPos.z);
+      }
     }
 
     controls.update(); 
 
-    // Hide recursive screens to prevent render feedback loops
     liveLaptopScreen.visible = false; 
     camScreen.visible = false;
 
